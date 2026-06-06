@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
@@ -36,10 +45,12 @@ export default function DashboardPage() {
     melhorDS: 0,
   });
 
+  const [ranking, setRanking] = useState<any[]>([]);
+
   async function carregarDashboard() {
     const motoristas = await listarMotoristas();
     const metricas: any[] = await listarMetricas();
-    const ranking = await gerarRankingGeral();
+    const rankingData = await gerarRankingGeral();
 
     const totalPacotes = metricas.reduce(
       (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
@@ -61,20 +72,33 @@ export default function DashboardPage() {
           )
         : 0;
 
+    setRanking(rankingData.slice(0, 5));
+
     setData({
       totalMotoristas: motoristas.length,
       totalMetricas: metricas.length,
       totalPacotes,
       totalInsucessos,
       dsMedia,
-      melhorMotorista: ranking[0]?.motoristaNome || "-",
-      melhorDS: ranking[0]?.dsMedia || 0,
+      melhorMotorista: rankingData[0]?.motoristaNome || "-",
+      melhorDS: rankingData[0]?.dsMedia || 0,
     });
   }
 
   useEffect(() => {
     carregarDashboard();
   }, []);
+
+  const graficoPacotes = [
+    {
+      nome: "Pacotes",
+      valor: data.totalPacotes,
+    },
+    {
+      nome: "Insucessos",
+      valor: data.totalInsucessos,
+    },
+  ];
 
   return (
     <div className="flex">
@@ -132,6 +156,44 @@ export default function DashboardPage() {
               <p className={`text-3xl font-bold ${corDS(data.melhorDS)}`}>
                 {data.melhorDS}%
               </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="bg-zinc-900 p-6 rounded border border-zinc-800">
+              <h2 className="text-yellow-400 text-xl font-bold mb-4">
+                Top 5 DS
+              </h2>
+
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ranking}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="motoristaNome" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="dsMedia" fill="#ffd600" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 p-6 rounded border border-zinc-800">
+              <h2 className="text-yellow-400 text-xl font-bold mb-4">
+                Pacotes x Insucessos
+              </h2>
+
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={graficoPacotes}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="nome" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="valor" fill="#ffd600" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </main>
