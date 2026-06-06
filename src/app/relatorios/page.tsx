@@ -7,7 +7,7 @@ import autoTable from "jspdf-autotable";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { listarMetricas } from "@/services/metricaService";
-import { gerarRankingGeral } from "@/services/rankingService";
+import { gerarRankingPorPeriodo } from "@/services/rankingService";
 
 export default function RelatoriosPage() {
   const [tipo, setTipo] = useState("geral");
@@ -16,7 +16,7 @@ export default function RelatoriosPage() {
 
   async function carregarDados() {
     const metricasData = await listarMetricas();
-    const rankingData = await gerarRankingGeral();
+    const rankingData = await gerarRankingPorPeriodo("mes");
 
     setMetricas(metricasData as any[]);
     setRanking(rankingData as any[]);

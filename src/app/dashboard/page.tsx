@@ -16,7 +16,7 @@ import Header from "@/components/layout/Header";
 
 import { listarMotoristas } from "@/services/motoristaService";
 import { listarMetricas } from "@/services/metricaService";
-import { gerarRankingGeral } from "@/services/rankingService";
+import { gerarRankingPorPeriodo } from "@/services/rankingService";
 
 interface DashboardData {
   totalMotoristas: number;
@@ -56,7 +56,7 @@ export default function DashboardPage() {
   async function carregarDashboard() {
     const motoristas = await listarMotoristas();
     const metricas: any[] = await listarMetricas();
-    const rankingData = await gerarRankingGeral();
+    const rankingData = await gerarRankingPorPeriodo("mes");
 
     const totalPacotes = metricas.reduce(
       (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
