@@ -7,6 +7,7 @@ import Header from "@/components/layout/Header";
 
 import {
   criarMotorista,
+  editarMotorista,
   excluirMotorista,
   listarMotoristas,
 } from "@/services/motoristaService";
@@ -18,6 +19,10 @@ export default function MotoristasPage() {
   const [motoristas, setMotoristas] = useState<any[]>([]);
   const [metricas, setMetricas] = useState<any[]>([]);
   const [busca, setBusca] = useState("");
+
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [nomeEditando, setNomeEditando] = useState("");
+  const [observacaoEditando, setObservacaoEditando] = useState("");
 
   async function carregarDados() {
     const motoristasData = await listarMotoristas();
@@ -44,6 +49,35 @@ export default function MotoristasPage() {
     await excluirMotorista(id);
 
     carregarDados();
+  }
+
+  function iniciarEdicao(motorista: any) {
+    setEditandoId(motorista.id);
+    setNomeEditando(motorista.nomeCompleto || "");
+    setObservacaoEditando(motorista.observacao || "");
+  }
+
+  async function salvarEdicao() {
+    if (!editandoId) return;
+
+    await editarMotorista(editandoId, {
+      nomeCompleto: nomeEditando,
+      observacao: observacaoEditando,
+    });
+
+    setEditandoId(null);
+    setNomeEditando("");
+    setObservacaoEditando("");
+
+    carregarDados();
+
+    alert("Motorista atualizado");
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setNomeEditando("");
+    setObservacaoEditando("");
   }
 
   function metricasDoMotorista(id: string) {
@@ -144,10 +178,59 @@ export default function MotoristasPage() {
                   </summary>
 
                   <div className="p-4 border-t border-zinc-700 space-y-4">
+                    {editandoId === motorista.id ? (
+                      <div className="bg-black p-4 rounded border border-yellow-400 space-y-3">
+                        <input
+                          value={nomeEditando}
+                          onChange={(e) => setNomeEditando(e.target.value)}
+                          className="w-full p-3 rounded text-black"
+                          placeholder="Nome completo"
+                        />
+
+                        <textarea
+                          value={observacaoEditando}
+                          onChange={(e) =>
+                            setObservacaoEditando(e.target.value)
+                          }
+                          className="w-full p-3 rounded text-black"
+                          placeholder="Observações do motorista"
+                        />
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={salvarEdicao}
+                            className="bg-yellow-400 text-black px-4 py-2 rounded font-bold"
+                          >
+                            Salvar
+                          </button>
+
+                          <button
+                            onClick={cancelarEdicao}
+                            className="bg-zinc-700 text-white px-4 py-2 rounded font-bold"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-black p-4 rounded border border-zinc-800">
+                        <p className="text-zinc-400 text-sm">Observações</p>
+
+                        <p className="text-white">
+                          {motorista.observacao ||
+                            "Sem observações cadastradas."}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                       <div className="bg-black p-4 rounded">
                         <p className="text-zinc-400 text-sm">DS média</p>
-                        <p className={`text-2xl font-bold ${corDS(resumo.dsMedia)}`}>
+                        <p
+                          className={`text-2xl font-bold ${corDS(
+                            resumo.dsMedia
+                          )}`}
+                        >
                           {resumo.dsMedia}%
                         </p>
                       </div>
@@ -209,12 +292,21 @@ export default function MotoristasPage() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleExcluir(motorista.id)}
-                      className="bg-red-600 text-white px-4 py-2 rounded"
-                    >
-                      Excluir Motorista
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => iniciarEdicao(motorista)}
+                        className="bg-yellow-400 text-black px-4 py-2 rounded font-bold"
+                      >
+                        Editar Motorista
+                      </button>
+
+                      <button
+                        onClick={() => handleExcluir(motorista.id)}
+                        className="bg-red-600 text-white px-4 py-2 rounded"
+                      >
+                        Excluir Motorista
+                      </button>
+                    </div>
                   </div>
                 </details>
               );
