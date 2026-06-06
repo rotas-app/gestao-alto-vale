@@ -8,10 +8,15 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { criarLog } from "./logService";
 
 const COLLECTION = "motoristas";
 
 export async function criarMotorista(nomeCompleto: string) {
+  await criarLog(
+  "CRIAR_MOTORISTA",
+  `Motorista criado: ${nomeCompleto}`
+);
   return addDoc(collection(db, COLLECTION), {
     nomeCompleto,
     observacao: "",
@@ -36,9 +41,17 @@ export async function editarMotorista(
     observacao?: string;
   }
 ) {
+  await criarLog(
+  "EDITAR_MOTORISTA",
+  `Motorista atualizado: ${data.nomeCompleto}`
+);
   return updateDoc(doc(db, COLLECTION, id), data);
 }
 
 export async function excluirMotorista(id: string) {
+  await criarLog(
+  "EXCLUIR_MOTORISTA",
+  `Motorista removido: ${id}`
+);
   return deleteDoc(doc(db, COLLECTION, id));
 }

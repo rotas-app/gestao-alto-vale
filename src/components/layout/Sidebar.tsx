@@ -74,6 +74,12 @@ export default function Sidebar() {
           >
             Usuários
           </Link>
+          <Link
+  href="/logs"
+  className="text-white hover:text-yellow-400"
+>
+  Logs
+</Link>
         </nav>
       </aside>
     </>
