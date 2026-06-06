@@ -13,6 +13,7 @@ import {
 } from "@/services/motoristaService";
 
 import { listarMetricas } from "@/services/metricaService";
+import ProtectedPage from "@/components/ProtectedPage";
 
 export default function MotoristasPage() {
   const [nome, setNome] = useState("");
@@ -130,6 +131,7 @@ export default function MotoristasPage() {
   );
 
   return (
+  <ProtectedPage>
     <div className="flex flex-col md:flex-row">
       <Sidebar />
 
@@ -315,5 +317,6 @@ export default function MotoristasPage() {
         </main>
       </div>
     </div>
-  );
+  </ProtectedPage>
+);
 }

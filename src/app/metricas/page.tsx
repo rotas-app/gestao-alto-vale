@@ -6,6 +6,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 
 import { listarMotoristas } from "@/services/motoristaService";
+import ProtectedPage from "@/components/ProtectedPage";
 
 import {
   criarMetrica,
@@ -116,6 +117,7 @@ export default function MetricasPage() {
   }, []);
 
   return (
+  <ProtectedPage>
     <div className="flex flex-col md:flex-row">
       <Sidebar />
 
@@ -279,5 +281,6 @@ export default function MetricasPage() {
         </main>
       </div>
     </div>
-  );
+  </ProtectedPage>
+);
 }

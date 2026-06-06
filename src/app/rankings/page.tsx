@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import ProtectedPage from "@/components/ProtectedPage";
 
 import {
   gerarRankingPorPeriodo,
@@ -33,6 +34,7 @@ export default function RankingsPage() {
   }, [periodo]);
 
   return (
+  <ProtectedPage>
     <div className="flex flex-col md:flex-row">
       <Sidebar />
 
@@ -114,5 +116,6 @@ export default function RankingsPage() {
         </main>
       </div>
     </div>
-  );
+  </ProtectedPage>
+);
 }

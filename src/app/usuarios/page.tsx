@@ -5,6 +5,7 @@ import { useState } from "react";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import { criarConviteGestor } from "@/services/conviteService";
+import ProtectedPage from "@/components/ProtectedPage";
 
 export default function UsuariosPage() {
   const [nome, setNome] = useState("");
@@ -25,6 +26,7 @@ export default function UsuariosPage() {
   }
 
   return (
+  <ProtectedPage>
     <div className="flex flex-col md:flex-row">
       <Sidebar />
 
@@ -85,6 +87,7 @@ export default function UsuariosPage() {
           </div>
         </main>
       </div>
-    </div>
-  );
+     </div>
+  </ProtectedPage>
+);
 }

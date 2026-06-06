@@ -13,6 +13,7 @@ import {
 
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import ProtectedPage from "@/components/ProtectedPage";
 
 import { listarMotoristas } from "@/services/motoristaService";
 import { listarMetricas } from "@/services/metricaService";
@@ -116,6 +117,7 @@ export default function DashboardPage() {
   ];
 
   return (
+  <ProtectedPage>
     <div className="flex flex-col md:flex-row">
       <Sidebar />
 
@@ -242,5 +244,6 @@ export default function DashboardPage() {
         </main>
       </div>
     </div>
-  );
+  </ProtectedPage>
+);
 }

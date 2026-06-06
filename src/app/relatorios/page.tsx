@@ -8,6 +8,7 @@ import Header from "@/components/layout/Header";
 
 import { listarMetricas } from "@/services/metricaService";
 import { gerarRankingPorPeriodo } from "@/services/rankingService";
+import ProtectedPage from "@/components/ProtectedPage";
 
 export default function RelatoriosPage() {
   const [metricas, setMetricas] = useState<any[]>([]);
@@ -70,6 +71,7 @@ export default function RelatoriosPage() {
   }
 
   return (
+  <ProtectedPage>
     <div className="flex flex-col md:flex-row">
       <Sidebar />
 
@@ -143,5 +145,6 @@ export default function RelatoriosPage() {
         </main>
       </div>
     </div>
-  );
+  </ProtectedPage>
+);
 }
