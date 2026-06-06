@@ -26,6 +26,9 @@ interface DashboardData {
   dsMedia: number;
   melhorMotorista: string;
   melhorDS: number;
+  piorMotorista: string;
+  piorDS: number;
+  metricasCriticas: number;
 }
 
 function corDS(ds: number) {
@@ -43,6 +46,9 @@ export default function DashboardPage() {
     dsMedia: 0,
     melhorMotorista: "-",
     melhorDS: 0,
+    piorMotorista: "-",
+    piorDS: 0,
+    metricasCriticas: 0,
   });
 
   const [ranking, setRanking] = useState<any[]>([]);
@@ -72,6 +78,12 @@ export default function DashboardPage() {
           )
         : 0;
 
+    const metricasCriticas = metricas.filter(
+      (item) => Number(item.ds || 0) < 95
+    ).length;
+
+    const pior = rankingData.length > 0 ? rankingData[rankingData.length - 1] : null;
+
     setRanking(rankingData.slice(0, 5));
 
     setData({
@@ -82,6 +94,9 @@ export default function DashboardPage() {
       dsMedia,
       melhorMotorista: rankingData[0]?.motoristaNome || "-",
       melhorDS: rankingData[0]?.dsMedia || 0,
+      piorMotorista: pior?.motoristaNome || "-",
+      piorDS: pior?.dsMedia || 0,
+      metricasCriticas,
     });
   }
 
@@ -155,6 +170,34 @@ export default function DashboardPage() {
               </p>
               <p className={`text-3xl font-bold ${corDS(data.melhorDS)}`}>
                 {data.melhorDS}%
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="bg-red-950 border border-red-600 p-6 rounded">
+              <p className="text-red-300 font-bold">
+                ⚠ Alertas DS abaixo de 95%
+              </p>
+
+              <p className="text-red-400 text-5xl font-bold mt-2">
+                {data.metricasCriticas}
+              </p>
+
+              <p className="text-zinc-300 text-sm mt-2">
+                Métricas com desempenho abaixo da meta operacional.
+              </p>
+            </div>
+
+            <div className="bg-zinc-900 border border-red-600 p-6 rounded">
+              <p className="text-zinc-400">Pior DS médio</p>
+
+              <p className="text-white text-xl font-bold">
+                {data.piorMotorista}
+              </p>
+
+              <p className="text-red-400 text-4xl font-bold">
+                {data.piorDS}%
               </p>
             </div>
           </div>
