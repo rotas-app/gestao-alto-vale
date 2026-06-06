@@ -1,104 +1,73 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+
 import { listarMetricas } from "@/services/metricaService";
 import { gerarRankingPorPeriodo } from "@/services/rankingService";
 
 export default function RelatoriosPage() {
-  const [tipo, setTipo] = useState("geral");
   const [metricas, setMetricas] = useState<any[]>([]);
-  const [ranking, setRanking] = useState<any[]>([]);
+  const [tipo, setTipo] = useState("geral");
 
   async function carregarDados() {
-    const metricasData = await listarMetricas();
-    const rankingData = await gerarRankingPorPeriodo("mes");
-
-    setMetricas(metricasData as any[]);
-    setRanking(rankingData as any[]);
-  }
-
-  function gerarPDF() {
-    const pdf = new jsPDF();
-
-    const totalPacotes = metricas.reduce(
-      (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
-      0
-    );
-
-    const totalInsucessos = metricas.reduce(
-      (acc, item) => acc + Number(item.qtdPacotesNaoEntregues || 0),
-      0
-    );
-
-    const dsMedia =
-      metricas.length > 0
-        ? Number(
-            (
-              metricas.reduce((acc, item) => acc + Number(item.ds || 0), 0) /
-              metricas.length
-            ).toFixed(2)
-          )
-        : 0;
-
-    pdf.setFontSize(18);
-    pdf.text("GESTÃO INTERNA EMPRESA ALTO VALE", 14, 20);
-
-    pdf.setFontSize(11);
-    pdf.text(`Tipo de relatório: ${tipo.toUpperCase()}`, 14, 32);
-    pdf.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 14, 40);
-
-    pdf.setFontSize(13);
-    pdf.text("Resumo Operacional", 14, 55);
-
-    autoTable(pdf, {
-      startY: 62,
-      head: [["Indicador", "Valor"]],
-      body: [
-        ["Total de registros", String(metricas.length)],
-        ["Total de pacotes", String(totalPacotes)],
-        ["Total de insucessos", String(totalInsucessos)],
-        ["DS média", `${dsMedia}%`],
-        ["Melhor motorista", ranking[0]?.motoristaNome || "-"],
-        ["Melhor DS", `${ranking[0]?.dsMedia || 0}%`],
-      ],
-    });
-
-    autoTable(pdf, {
-      startY: (pdf as any).lastAutoTable.finalY + 15,
-      head: [["#", "Motorista", "DS média", "Pacotes", "Insucessos"]],
-      body: ranking.map((item) => [
-        item.posicao,
-        item.motoristaNome,
-        `${item.dsMedia}%`,
-        item.totalPacotes,
-        item.totalInsucessos,
-      ]),
-    });
-
-    autoTable(pdf, {
-      startY: (pdf as any).lastAutoTable.finalY + 15,
-      head: [["Data", "Motorista", "Gaiola", "Pacotes", "Insucessos", "DS"]],
-      body: metricas.map((item) => [
-        item.data,
-        item.motoristaNome,
-        item.codigoGaiola,
-        item.qtdPacotesTotal,
-        item.qtdPacotesNaoEntregues,
-        `${item.ds}%`,
-      ]),
-    });
-
-    pdf.save(`relatorio-${tipo}-alto-vale.pdf`);
+    const data = await listarMetricas();
+    setMetricas(data as any[]);
   }
 
   useEffect(() => {
     carregarDados();
   }, []);
+
+  async function exportarExcel() {
+    let dados: any[] = [];
+
+    if (tipo === "geral") {
+      dados = metricas.map((item) => ({
+        Data: item.data,
+        Motorista: item.motoristaNome,
+        Gaiola: item.codigoGaiola,
+        Pacotes: item.qtdPacotesTotal,
+        Insucessos: item.qtdPacotesNaoEntregues,
+        DS: `${item.ds}%`,
+        Motivo: item.motivoNaoEntrega,
+      }));
+    }
+
+    if (tipo === "ranking") {
+      const ranking =
+        await gerarRankingPorPeriodo("mes");
+
+      dados = ranking.map((item, index) => ({
+        Posicao: index + 1,
+        Motorista: item.motoristaNome,
+        DS: `${item.dsMedia}%`,
+        Pacotes: item.totalPacotes,
+        Insucessos: item.totalInsucessos,
+        Registros: item.registros,
+      }));
+    }
+
+    const worksheet =
+      XLSX.utils.json_to_sheet(dados);
+
+    const workbook =
+      XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      "Relatorio"
+    );
+
+    XLSX.writeFile(
+      workbook,
+      `relatorio-${tipo}.xlsx`
+    );
+  }
 
   return (
     <div className="flex flex-col md:flex-row">
@@ -109,31 +78,67 @@ export default function RelatoriosPage() {
 
         <main className="p-6 bg-zinc-950 min-h-screen">
           <h1 className="text-3xl text-yellow-400 font-bold mb-6">
-            Relatórios PDF
+            Relatórios
           </h1>
 
-          <div className="bg-zinc-900 p-6 rounded max-w-xl">
-            <label className="text-white block mb-2">
-              Tipo de relatório
-            </label>
+          <div className="bg-zinc-900 rounded p-6 mb-6 space-y-4">
+            <div>
+              <label className="text-white block mb-2">
+                Tipo de relatório
+              </label>
 
-            <select
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value)}
-              className="w-full p-3 rounded text-black mb-4"
-            >
-              <option value="geral">Geral</option>
-              <option value="diario">Diário</option>
-              <option value="semanal">Semanal</option>
-              <option value="mensal">Mensal</option>
-            </select>
+              <select
+                value={tipo}
+                onChange={(e) =>
+                  setTipo(e.target.value)
+                }
+                className="w-full p-3 rounded text-black"
+              >
+                <option value="geral">
+                  Relatório Geral
+                </option>
+
+                <option value="ranking">
+                  Ranking Mensal
+                </option>
+              </select>
+            </div>
 
             <button
-              onClick={gerarPDF}
-              className="bg-yellow-400 text-black font-bold px-6 py-3 rounded"
+              onClick={exportarExcel}
+              className="bg-green-600 text-white font-bold px-6 py-3 rounded"
             >
-              Gerar PDF
+              Exportar Excel
             </button>
+          </div>
+
+          <div className="bg-zinc-900 rounded p-6">
+            <h2 className="text-yellow-400 text-xl font-bold mb-4">
+              Pré-visualização
+            </h2>
+
+            <div className="space-y-3">
+              {metricas.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-black border border-zinc-800 rounded p-4"
+                >
+                  <p className="text-white font-bold">
+                    {item.motoristaNome}
+                  </p>
+
+                  <p className="text-zinc-400 text-sm">
+                    {item.data} • DS {item.ds}%
+                  </p>
+
+                  <p className="text-zinc-500 text-sm">
+                    Pacotes: {item.qtdPacotesTotal} |
+                    Insucessos:{" "}
+                    {item.qtdPacotesNaoEntregues}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </main>
       </div>
