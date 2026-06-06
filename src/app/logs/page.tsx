@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import ProtectedPage from "@/components/ProtectedPage";
+import AdminOnly from "@/components/AdminOnly";
 
 import { listarLogs } from "@/services/logService";
 
@@ -21,7 +22,8 @@ export default function LogsPage() {
   }, []);
 
   return (
-    <ProtectedPage>
+  <ProtectedPage>
+    <AdminOnly>
       <div className="flex flex-col md:flex-row">
         <Sidebar />
 
@@ -62,6 +64,7 @@ export default function LogsPage() {
           </main>
         </div>
       </div>
-    </ProtectedPage>
-  );
+    </AdminOnly>
+  </ProtectedPage>
+);
 }

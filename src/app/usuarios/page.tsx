@@ -6,6 +6,7 @@ import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import { criarConviteGestor } from "@/services/conviteService";
 import ProtectedPage from "@/components/ProtectedPage";
+import AdminOnly from "@/components/AdminOnly";
 
 export default function UsuariosPage() {
   const [nome, setNome] = useState("");
@@ -27,7 +28,8 @@ export default function UsuariosPage() {
 
   return (
   <ProtectedPage>
-    <div className="flex flex-col md:flex-row">
+    <AdminOnly>
+      <div className="flex flex-col md:flex-row">
       <Sidebar />
 
       <div className="flex-1">
@@ -88,6 +90,7 @@ export default function UsuariosPage() {
         </main>
       </div>
      </div>
+    </AdminOnly>
   </ProtectedPage>
 );
 }
