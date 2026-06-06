@@ -1,56 +1,81 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth";
+import { useState } from "react";
 
 export default function Sidebar() {
-  const { user } = useAuth();
-
-  const isAdmin = user?.cargo === "admin";
+  const [open, setOpen] = useState(false);
 
   return (
-    <aside className="w-64 bg-black border-r border-yellow-400 min-h-screen">
-      <div className="p-6">
-        <h2 className="text-yellow-400 text-xl font-bold">
-          Alto Vale
-        </h2>
-      </div>
+    <>
+      <button
+        onClick={() => setOpen(!open)}
+        className="md:hidden fixed top-4 left-4 z-50 bg-yellow-400 text-black px-3 py-2 rounded font-bold"
+      >
+        MENU
+      </button>
 
-      <nav className="flex flex-col gap-2 p-4">
-        <Link href="/dashboard" className="text-white hover:text-yellow-400">
-          Dashboard
-        </Link>
+      <aside
+        className={`
+          fixed md:relative z-40
+          top-0 left-0
+          h-screen w-64
+          bg-black border-r border-yellow-400
+          transform transition-transform duration-300
+          ${open ? "translate-x-0" : "-translate-x-full"}
+          md:translate-x-0
+        `}
+      >
+        <div className="p-6">
+          <h2 className="text-yellow-400 text-2xl font-bold">
+            Alto Vale
+          </h2>
+        </div>
 
-        <Link href="/motoristas" className="text-white hover:text-yellow-400">
-          Motoristas
-        </Link>
+        <nav className="flex flex-col gap-2 p-4">
+          <Link
+            href="/dashboard"
+            className="text-white hover:text-yellow-400"
+          >
+            Dashboard
+          </Link>
 
-        <Link href="/metricas" className="text-white hover:text-yellow-400">
-          Métricas
-        </Link>
+          <Link
+            href="/motoristas"
+            className="text-white hover:text-yellow-400"
+          >
+            Motoristas
+          </Link>
 
-        <Link href="/rankings" className="text-white hover:text-yellow-400">
-          Rankings
-        </Link>
+          <Link
+            href="/metricas"
+            className="text-white hover:text-yellow-400"
+          >
+            Métricas
+          </Link>
 
-        <Link href="/relatorios" className="text-white hover:text-yellow-400">
-          Relatórios
-        </Link>
+          <Link
+            href="/rankings"
+            className="text-white hover:text-yellow-400"
+          >
+            Rankings
+          </Link>
 
-        {isAdmin && (
-          <>
-            <div className="border-t border-zinc-700 my-3" />
+          <Link
+            href="/relatorios"
+            className="text-white hover:text-yellow-400"
+          >
+            Relatórios
+          </Link>
 
-            <Link href="/usuarios" className="text-white hover:text-yellow-400">
-              Usuários
-            </Link>
-
-            <Link href="/configuracoes" className="text-white hover:text-yellow-400">
-              Configurações
-            </Link>
-          </>
-        )}
-      </nav>
-    </aside>
+          <Link
+            href="/usuarios"
+            className="text-white hover:text-yellow-400"
+          >
+            Usuários
+          </Link>
+        </nav>
+      </aside>
+    </>
   );
 }

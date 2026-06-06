@@ -101,7 +101,7 @@ export default function RelatoriosPage() {
   }, []);
 
   return (
-    <div className="flex">
+    <div className="flex flex-col md:flex-row">
       <Sidebar />
 
       <div className="flex-1">
