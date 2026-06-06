@@ -16,10 +16,16 @@ export default function ConvitePage() {
   const [loading, setLoading] = useState(true);
 
   async function carregarConvite() {
+  try {
     const data = await buscarConvitePorToken(token);
     setConvite(data);
+  } catch (error) {
+    console.error("Erro ao carregar convite:", error);
+    alert("Erro ao carregar convite. Verifique as permissões do Firestore.");
+  } finally {
     setLoading(false);
   }
+}
 
   async function handleAceitar() {
     try {
