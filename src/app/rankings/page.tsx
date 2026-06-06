@@ -1,19 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { gerarRankingGeral } from "@/services/rankingService";
 
-interface RankingItem {
-  motoristaId: string;
-  motoristaNome: string;
-  totalRegistros: number;
-  totalPacotes: number;
-  totalInsucessos: number;
-  dsMedia: number;
-  posicao: number;
-}
+import {
+  gerarRankingPorPeriodo,
+} from "@/services/rankingService";
 
 function corDS(ds: number) {
   if (ds >= 98) return "text-green-400";
@@ -22,19 +16,21 @@ function corDS(ds: number) {
 }
 
 export default function RankingsPage() {
-  const [ranking, setRanking] = useState<RankingItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [ranking, setRanking] = useState<any[]>([]);
+  const [periodo, setPeriodo] = useState<
+    "dia" | "semana" | "mes"
+  >("dia");
 
   async function carregarRanking() {
-    setLoading(true);
-    const data = await gerarRankingGeral();
+    const data =
+      await gerarRankingPorPeriodo(periodo);
+
     setRanking(data);
-    setLoading(false);
   }
 
   useEffect(() => {
     carregarRanking();
-  }, []);
+  }, [periodo]);
 
   return (
     <div className="flex flex-col md:flex-row">
@@ -44,41 +40,74 @@ export default function RankingsPage() {
         <Header />
 
         <main className="p-6 bg-zinc-950 min-h-screen">
-          <h1 className="text-3xl text-yellow-400 font-bold mb-6">
-            Ranking DS
-          </h1>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <h1 className="text-3xl text-yellow-400 font-bold">
+              Ranking DS
+            </h1>
 
-          <div className="bg-zinc-900 rounded p-6">
-            {loading ? (
-              <p className="text-white">Carregando ranking...</p>
-            ) : ranking.length === 0 ? (
-              <p className="text-white">Nenhuma métrica cadastrada ainda.</p>
-            ) : (
-              <div className="space-y-3">
-                {ranking.map((item) => (
-                  <div
-                    key={item.motoristaId}
-                    className="bg-black border border-zinc-800 rounded p-4 flex items-center justify-between"
+            <select
+              value={periodo}
+              onChange={(e) =>
+                setPeriodo(
+                  e.target.value as any
+                )
+              }
+              className="bg-zinc-900 border border-zinc-700 text-white p-3 rounded"
+            >
+              <option value="dia">
+                Ranking do Dia
+              </option>
+
+              <option value="semana">
+                Ranking Semanal
+              </option>
+
+              <option value="mes">
+                Ranking Mensal
+              </option>
+            </select>
+          </div>
+
+          <div className="bg-zinc-900 rounded p-4 space-y-4">
+            {ranking.map((item, index) => (
+              <div
+                key={index}
+                className="bg-black border border-zinc-800 rounded p-4 flex items-center justify-between"
+              >
+                <div>
+                  <p className="text-white text-xl font-bold">
+                    #{index + 1} • {item.motoristaNome}
+                  </p>
+
+                  <p className="text-zinc-400 text-sm">
+                    Registros: {item.registros} |
+                    Pacotes: {item.totalPacotes} |
+                    Insucessos:{" "}
+                    {item.totalInsucessos}
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <p
+                    className={`text-5xl font-bold ${corDS(
+                      item.dsMedia
+                    )}`}
                   >
-                    <div>
-                      <p className="text-white font-bold">
-                        {item.posicao}º - {item.motoristaNome}
-                      </p>
+                    {item.dsMedia}%
+                  </p>
 
-                      <p className="text-zinc-400 text-sm">
-                        Registros: {item.totalRegistros} | Pacotes:{" "}
-                        {item.totalPacotes} | Insucessos: {item.totalInsucessos}
-                      </p>
-                    </div>
+                  <p className="text-zinc-500 text-sm">
+                    DS média
+                  </p>
+                </div>
+              </div>
+            ))}
 
-                    <div className="text-right">
-                      <p className={`text-3xl font-bold ${corDS(item.dsMedia)}`}>
-                        {item.dsMedia}%
-                      </p>
-                      <p className="text-zinc-400 text-sm">DS média</p>
-                    </div>
-                  </div>
-                ))}
+            {ranking.length === 0 && (
+              <div className="text-center py-20">
+                <p className="text-zinc-400 text-xl">
+                  Nenhuma métrica encontrada.
+                </p>
               </div>
             )}
           </div>

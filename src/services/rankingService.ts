@@ -1,77 +1,72 @@
-import { listarMetricas } from "@/services/metricaService";
+import { listarMetricas } from "./metricaService";
 
-interface Metrica {
-  id: string;
-  motoristaId: string;
-  motoristaNome: string;
-  data: string;
-  qtdPacotesTotal: number;
-  qtdPacotesNaoEntregues: number;
-  ds: number;
-}
+export async function gerarRankingPorPeriodo(
+  periodo: "dia" | "semana" | "mes"
+) {
+  const metricas: any[] = await listarMetricas();
 
-interface RankingItem {
-  motoristaId: string;
-  motoristaNome: string;
-  totalRegistros: number;
-  totalPacotes: number;
-  totalInsucessos: number;
-  dsMedia: number;
-  posicao: number;
-}
+  const hoje = new Date();
 
-export async function gerarRankingGeral(): Promise<RankingItem[]> {
-  const metricas = await listarMetricas() as Metrica[];
+  const filtradas = metricas.filter((item) => {
+    if (!item.data) return false;
 
-  const agrupado = new Map<string, Metrica[]>();
+    const data = new Date(item.data);
 
-  metricas.forEach((metrica) => {
-    if (!metrica.motoristaId) return;
+    if (periodo === "dia") {
+      return (
+        data.toDateString() === hoje.toDateString()
+      );
+    }
 
-    const lista = agrupado.get(metrica.motoristaId) || [];
-    lista.push(metrica);
-    agrupado.set(metrica.motoristaId, lista);
+    if (periodo === "semana") {
+      const diff =
+        (hoje.getTime() - data.getTime()) /
+        (1000 * 60 * 60 * 24);
+
+      return diff <= 7;
+    }
+
+    if (periodo === "mes") {
+      return (
+        data.getMonth() === hoje.getMonth() &&
+        data.getFullYear() === hoje.getFullYear()
+      );
+    }
+
+    return true;
   });
 
-  const ranking: Omit<RankingItem, "posicao">[] = [];
+  const agrupado: any = {};
 
-  agrupado.forEach((lista) => {
-    const totalRegistros = lista.length;
+  filtradas.forEach((item) => {
+    if (!agrupado[item.motoristaId]) {
+      agrupado[item.motoristaId] = {
+        motoristaNome: item.motoristaNome,
+        totalPacotes: 0,
+        totalInsucessos: 0,
+        totalDS: 0,
+        registros: 0,
+      };
+    }
 
-    const totalPacotes = lista.reduce(
-      (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
-      0
-    );
+    agrupado[item.motoristaId].totalPacotes +=
+      Number(item.qtdPacotesTotal || 0);
 
-    const totalInsucessos = lista.reduce(
-      (acc, item) => acc + Number(item.qtdPacotesNaoEntregues || 0),
-      0
-    );
+    agrupado[item.motoristaId].totalInsucessos +=
+      Number(item.qtdPacotesNaoEntregues || 0);
 
-    const dsMedia =
-      totalRegistros > 0
-        ? Number(
-            (
-              lista.reduce((acc, item) => acc + Number(item.ds || 0), 0) /
-              totalRegistros
-            ).toFixed(2)
-          )
-        : 0;
+    agrupado[item.motoristaId].totalDS +=
+      Number(item.ds || 0);
 
-    ranking.push({
-      motoristaId: lista[0].motoristaId,
-      motoristaNome: lista[0].motoristaNome,
-      totalRegistros,
-      totalPacotes,
-      totalInsucessos,
-      dsMedia,
-    });
+    agrupado[item.motoristaId].registros += 1;
   });
 
-  return ranking
-    .sort((a, b) => b.dsMedia - a.dsMedia)
-    .map((item, index) => ({
+  return Object.values(agrupado)
+    .map((item: any) => ({
       ...item,
-      posicao: index + 1,
-    }));
+      dsMedia: Number(
+        (item.totalDS / item.registros).toFixed(2)
+      ),
+    }))
+    .sort((a: any, b: any) => b.dsMedia - a.dsMedia);
 }
