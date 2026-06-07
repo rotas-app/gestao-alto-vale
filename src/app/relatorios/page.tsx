@@ -10,7 +10,7 @@ import ProtectedPage from "@/components/ProtectedPage";
 import { listarMetricas } from "@/services/metricaService";
 import { gerarRankingPorPeriodo } from "@/services/rankingService";
 
-const NUMERO_WHATSAPP = "+5547991232502";
+const NUMERO_WHATSAPP = "5547991232502";
 
 export default function RelatoriosPage() {
   const [metricas, setMetricas] = useState<any[]>([]);
@@ -102,21 +102,26 @@ Métricas por rota:
 ${linhas}`;
   }
 
-  function enviarWhatsapp() {
-    if (NUMERO_WHATSAPP === "+5547991232502") {
-      alert(
-        "Configure o número do WhatsApp no código em NUMERO_WHATSAPP. Use país + DDD + número. Ex: 5547999999999"
-      );
-      return;
-    }
+function enviarWhatsapp() {
 
-    const mensagem = encodeURIComponent(gerarMensagemWhatsapp());
-
-    window.open(
-      `https://wa.me/${NUMERO_WHATSAPP}?text=${mensagem}`,
-      "_blank"
+  if (!NUMERO_WHATSAPP) {
+    alert(
+      "Configure o número do WhatsApp."
     );
+
+    return;
   }
+
+  const mensagem =
+    encodeURIComponent(
+      gerarMensagemWhatsapp()
+    );
+
+  window.open(
+    `https://wa.me/${NUMERO_WHATSAPP}?text=${mensagem}`,
+    "_blank"
+  );
+}
 
   return (
     <ProtectedPage>
