@@ -49,19 +49,19 @@ export default function UsuariosPage() {
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="Nome do gestor"
-              className="w-full p-3 rounded text-black mb-4"
+              className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 mb-4"
             />
 
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email do gestor"
-              className="w-full p-3 rounded text-black mb-4"
+              className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 mb-4"
             />
 
             <button
               onClick={handleCriarConvite}
-              className="bg-yellow-400 text-black font-bold px-6 py-3 rounded"
+              className="bg-yellow-400 text-white font-bold px-6 py-3 rounded"
             >
               Gerar convite
             </button>
@@ -75,7 +75,7 @@ export default function UsuariosPage() {
                 <input
                   readOnly
                   value={linkConvite}
-                  className="w-full p-3 rounded text-black mb-3"
+                  className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 mb-3"
                 />
 
                 <button

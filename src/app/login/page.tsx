@@ -32,7 +32,7 @@ export default function LoginPage() {
         </p>
 
         <input
-          className="w-full p-3 rounded mb-4 text-black"
+          className="w-full p-3 rounded mb-4 text-white"
           placeholder="E-mail"
           value={email}
           onChange={(e) =>
@@ -42,7 +42,7 @@ export default function LoginPage() {
 
         <input
           type="password"
-          className="w-full p-3 rounded mb-4 text-black"
+          className="w-full p-3 rounded mb-4 text-white"
           placeholder="Senha"
           value={senha}
           onChange={(e) =>
@@ -52,7 +52,7 @@ export default function LoginPage() {
 
         <button
           onClick={handleLogin}
-          className="w-full bg-yellow-400 text-black font-bold p-3 rounded"
+          className="w-full bg-yellow-400 text-white font-bold p-3 rounded"
         >
           Entrar
         </button>

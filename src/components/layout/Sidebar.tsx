@@ -10,7 +10,7 @@ export default function Sidebar() {
     <>
       <button
         onClick={() => setOpen(!open)}
-        className="md:hidden fixed top-4 left-4 z-50 bg-yellow-400 text-black px-3 py-2 rounded font-bold"
+        className="md:hidden fixed top-4 left-4 z-50 bg-yellow-400 text-white px-3 py-2 rounded font-bold"
       >
         MENU
       </button>

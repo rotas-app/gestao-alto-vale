@@ -33,7 +33,7 @@ export default function AdminOnly({
 
           <button
             onClick={() => (window.location.href = "/dashboard")}
-            className="bg-yellow-400 text-black font-bold px-6 py-3 rounded"
+            className="bg-yellow-400 text-white font-bold px-6 py-3 rounded"
           >
             Voltar ao Dashboard
           </button>

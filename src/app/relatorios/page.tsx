@@ -185,7 +185,7 @@ function enviarWhatsapp() {
 
                 <button
                   onClick={enviarWhatsapp}
-                  className="bg-emerald-500 text-black font-bold px-6 py-3 rounded"
+                  className="bg-emerald-500 text-white font-bold px-6 py-3 rounded"
                 >
                   Enviar relatório no WhatsApp
                 </button>

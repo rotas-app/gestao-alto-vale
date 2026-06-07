@@ -148,12 +148,12 @@ export default function MotoristasPage() {
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="Nome completo"
-              className="w-full p-3 rounded text-black mb-4"
+              className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 mb-4"
             />
 
             <button
               onClick={handleCriar}
-              className="bg-yellow-400 text-black font-bold px-6 py-3 rounded"
+              className="bg-yellow-400 text-white font-bold px-6 py-3 rounded"
             >
               Cadastrar Motorista
             </button>
@@ -164,7 +164,7 @@ export default function MotoristasPage() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar motorista..."
-              className="w-full p-3 rounded text-black"
+              className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700"
             />
           </div>
 
@@ -185,7 +185,7 @@ export default function MotoristasPage() {
                         <input
                           value={nomeEditando}
                           onChange={(e) => setNomeEditando(e.target.value)}
-                          className="w-full p-3 rounded text-black"
+                          className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700"
                           placeholder="Nome completo"
                         />
 
@@ -194,14 +194,14 @@ export default function MotoristasPage() {
                           onChange={(e) =>
                             setObservacaoEditando(e.target.value)
                           }
-                          className="w-full p-3 rounded text-black"
+                          className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700"
                           placeholder="Observações do motorista"
                         />
 
                         <div className="flex gap-2">
                           <button
                             onClick={salvarEdicao}
-                            className="bg-yellow-400 text-black px-4 py-2 rounded font-bold"
+                            className="bg-yellow-400 text-white px-4 py-2 rounded font-bold"
                           >
                             Salvar
                           </button>
@@ -297,7 +297,7 @@ export default function MotoristasPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => iniciarEdicao(motorista)}
-                        className="bg-yellow-400 text-black px-4 py-2 rounded font-bold"
+                        className="bg-yellow-400 text-white px-4 py-2 rounded font-bold"
                       >
                         Editar Motorista
                       </button>

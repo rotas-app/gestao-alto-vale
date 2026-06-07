@@ -135,7 +135,7 @@ export default function MetricasPage() {
 
             <div className="bg-zinc-900 p-6 rounded space-y-4 mb-8">
               {editandoId && (
-                <div className="bg-yellow-400 text-black p-3 rounded font-bold">
+                <div className="bg-yellow-400 text-white p-3 rounded font-bold">
                   Editando métrica
                 </div>
               )}
@@ -207,7 +207,7 @@ export default function MetricasPage() {
               <div className="flex gap-3">
                 <button
                   onClick={handleSalvar}
-                  className="bg-yellow-400 text-black font-bold px-6 py-3 rounded"
+                  className="bg-yellow-400 text-white font-bold px-6 py-3 rounded"
                 >
                   {editandoId ? "Salvar Alterações" : "Salvar Métrica da Rota"}
                 </button>
@@ -260,7 +260,7 @@ export default function MetricasPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEditar(metrica)}
-                        className="bg-yellow-400 text-black px-4 py-2 rounded font-bold"
+                        className="bg-yellow-400 text-white px-4 py-2 rounded font-bold"
                       >
                         Editar
                       </button>

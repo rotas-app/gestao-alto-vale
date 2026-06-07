@@ -82,12 +82,12 @@ export default function ConvitePage() {
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
           placeholder="Crie uma senha"
-          className="w-full p-3 rounded text-black mb-4"
+          className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 mb-4"
         />
 
         <button
           onClick={handleAceitar}
-          className="w-full bg-yellow-400 text-black font-bold p-3 rounded"
+          className="w-full bg-yellow-400 text-white font-bold p-3 rounded"
         >
           Ativar conta
         </button>
