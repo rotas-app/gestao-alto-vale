@@ -12,6 +12,7 @@ interface AppUser {
   nome: string;
   cargo: "admin" | "gestor";
   status: "ativo" | "inativo";
+  baseId?: string;
 }
 
 interface AuthContextType {
@@ -53,6 +54,7 @@ export function AuthProvider({
         nome: data.nome,
         cargo: data.cargo,
         status: data.status,
+        baseId: data.baseId,
       });
     } catch (error) {
       console.error("Erro ao carregar perfil:", error);

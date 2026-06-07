@@ -1,12 +1,12 @@
 import "./globals.css";
 
-import {
-  AuthProvider
-} from "@/contexts/AuthContext";
+import type { Metadata } from "next";
 
-export const metadata = {
-  title:
-    "Gestão Interna Alto Vale",
+import { AuthProvider } from "@/contexts/AuthContext";
+import { BaseProvider } from "@/contexts/BaseContext";
+
+export const metadata: Metadata = {
+  title: "Gestão Interna Alto Vale",
 };
 
 export default function RootLayout({
@@ -14,18 +14,13 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-
   return (
     <html lang="pt-BR">
-
       <body>
-
         <AuthProvider>
-          {children}
+          <BaseProvider>{children}</BaseProvider>
         </AuthProvider>
-
       </body>
-
     </html>
   );
 }

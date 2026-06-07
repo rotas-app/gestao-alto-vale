@@ -6,4 +6,5 @@ export interface User {
   email: string;
   cargo: UserRole;
   status: "ativo" | "inativo";
+  baseId?: string;
 }

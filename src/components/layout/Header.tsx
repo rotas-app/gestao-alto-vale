@@ -2,24 +2,20 @@
 
 import { useState } from "react";
 import { signOut } from "firebase/auth";
-import {
-  LogOut,
-  Bell,
-  Search,
-} from "lucide-react";
+import { Bell, LogOut, Search } from "lucide-react";
 
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
+import { useBase } from "@/contexts/BaseContext";
 
 export default function Header() {
   const { user } = useAuth();
+  const { bases, baseAtual, setBaseAtual } = useBase();
 
-  const [idBusca, setIdBusca] =
-    useState("");
+  const [idBusca, setIdBusca] = useState("");
 
   async function handleLogout() {
     await signOut(auth);
-
     window.location.href = "/login";
   }
 
@@ -31,11 +27,7 @@ export default function Header() {
       return;
     }
 
-    window.location.href =
-      `/metricas?idRota=${encodeURIComponent(
-        id
-      )}`;
-
+    window.location.href = `/metricas?idRota=${encodeURIComponent(id)}`;
     setIdBusca("");
   }
 
@@ -52,32 +44,49 @@ export default function Header() {
           </h1>
         </div>
 
-        <div className="hidden lg:flex items-center bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2 w-[420px] focus-within:border-yellow-400 transition">
-          <Search
-            size={18}
-            className="text-zinc-500 mr-2"
-          />
+        <div className="hidden xl:flex items-center gap-3">
+          {user?.cargo === "admin" && (
+            <select
+              value={baseAtual}
+              onChange={(e) => setBaseAtual(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 text-white rounded-2xl px-4 py-3 text-sm outline-none focus:border-yellow-400"
+            >
+              <option value="">Selecionar base</option>
 
-          <input
-            value={idBusca}
-            onChange={(e) =>
-              setIdBusca(e.target.value)
-            }
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                buscarRota();
-              }
-            }}
-            placeholder="Buscar ID da rota..."
-            className="bg-transparent outline-none text-white placeholder:text-zinc-500 w-full text-sm"
-          />
+              {bases.map((base) => (
+                <option key={base.id} value={base.id}>
+                  {base.nome}
+                </option>
+              ))}
+            </select>
+          )}
 
-          <button
-            onClick={buscarRota}
-            className="ml-3 bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-2 rounded-xl font-black text-xs transition"
-          >
-            Buscar
-          </button>
+          {user?.cargo === "gestor" && (
+            <div className="bg-zinc-900 border border-zinc-800 text-white rounded-2xl px-4 py-3 text-sm">
+              Base: {user.baseId || "-"}
+            </div>
+          )}
+
+          <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2 w-[420px] focus-within:border-yellow-400 transition">
+            <Search size={18} className="text-zinc-500 mr-2" />
+
+            <input
+              value={idBusca}
+              onChange={(e) => setIdBusca(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") buscarRota();
+              }}
+              placeholder="Buscar ID da rota..."
+              className="bg-transparent outline-none text-white placeholder:text-zinc-500 w-full text-sm"
+            />
+
+            <button
+              onClick={buscarRota}
+              className="ml-3 bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-2 rounded-xl font-black text-xs transition"
+            >
+              Buscar
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
