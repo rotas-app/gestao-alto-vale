@@ -36,34 +36,43 @@ export function AuthProvider({
   const [loading, setLoading] = useState(true);
 
   async function carregarPerfil(uid: string) {
-    const ref = doc(db, "usuarios", uid);
-    const snap = await getDoc(ref);
+    try {
+      const ref = doc(db, "usuarios", uid);
+      const snap = await getDoc(ref);
 
-    if (!snap.exists()) {
+      if (!snap.exists()) {
+        setUser(null);
+        return;
+      }
+
+      const data = snap.data();
+
+      setUser({
+        uid,
+        email: data.email,
+        nome: data.nome,
+        cargo: data.cargo,
+        status: data.status,
+      });
+    } catch (error) {
+      console.error("Erro ao carregar perfil:", error);
       setUser(null);
-      return;
     }
-
-    setUser({
-      uid,
-      email: snap.data().email,
-      nome: snap.data().nome,
-      cargo: snap.data().cargo,
-      status: snap.data().status,
-    });
   }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setFirebaseUser(currentUser);
+      try {
+        setFirebaseUser(currentUser);
 
-      if (currentUser) {
-        await carregarPerfil(currentUser.uid);
-      } else {
-        setUser(null);
+        if (currentUser) {
+          await carregarPerfil(currentUser.uid);
+        } else {
+          setUser(null);
+        }
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     });
 
     return unsubscribe;
