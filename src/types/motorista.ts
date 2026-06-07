@@ -4,5 +4,6 @@ export interface Motorista {
   telefone?: string;
   observacao?: string;
   ativo: boolean;
-  createdAt?: any;
+  baseId?: string;
+  createdAt?: unknown;
 }

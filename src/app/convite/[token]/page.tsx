@@ -1,45 +1,60 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+
 import {
   aceitarConvite,
   buscarConvitePorToken,
+  type Convite,
 } from "@/services/conviteService";
 
 export default function ConvitePage() {
   const params = useParams();
   const token = String(params.token);
 
-  const [convite, setConvite] = useState<any>(null);
+  const [convite, setConvite] = useState<Convite | null>(null);
   const [senha, setSenha] = useState("");
   const [loading, setLoading] = useState(true);
-
-  async function carregarConvite() {
-  try {
-    const data = await buscarConvitePorToken(token);
-    setConvite(data);
-  } catch (error) {
-    console.error("Erro ao carregar convite:", error);
-    alert("Erro ao carregar convite. Verifique as permissões do Firestore.");
-  } finally {
-    setLoading(false);
-  }
-}
 
   async function handleAceitar() {
     try {
       await aceitarConvite(token, senha);
       alert("Conta criada com sucesso");
       window.location.href = "/dashboard";
-    } catch (error: any) {
-      alert(error.message || "Erro ao aceitar convite");
+    } catch (error: unknown) {
+      const mensagem =
+        error instanceof Error ? error.message : "Erro ao aceitar convite";
+
+      alert(mensagem);
     }
   }
 
   useEffect(() => {
-    carregarConvite();
-  }, []);
+    let ativo = true;
+
+    buscarConvitePorToken(token)
+      .then((data) => {
+        if (ativo) {
+          setConvite(data);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Erro ao carregar convite:", error);
+        alert(
+          "Erro ao carregar convite. Verifique as permissões do Firestore."
+        );
+      })
+      .finally(() => {
+        if (ativo) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [token]);
 
   if (loading) {
     return (
@@ -69,12 +84,8 @@ export default function ConvitePage() {
         </p>
 
         <div className="bg-black p-4 rounded mb-4">
-          <p className="text-white">
-            Nome: {convite.nome}
-          </p>
-          <p className="text-white">
-            Email: {convite.email}
-          </p>
+          <p className="text-white">Nome: {convite.nome}</p>
+          <p className="text-white">Email: {convite.email}</p>
         </div>
 
         <input

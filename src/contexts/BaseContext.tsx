@@ -12,7 +12,7 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 
-interface Base {
+export interface Base {
   id: string;
   nome: string;
   ativo: boolean;

@@ -4,43 +4,65 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  query,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import type { Metrica } from "@/types/metricas";
 import { criarLog } from "./logService";
 
 const COLLECTION = "metricas";
 
-export async function criarMetrica(data: any) {
+type MetricaInput = Omit<Metrica, "id" | "createdAt" | "updatedAt"> & {
+  baseId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+export async function criarMetrica(data: MetricaInput) {
   await criarLog(
-  "CRIAR_METRICA",
-  `Métrica criada para ${data.motoristaNome}`
-);
+    "CRIAR_METRICA",
+    `Métrica criada para ${data.motoristaNome} | Base: ${data.baseId}`
+  );
+
   return addDoc(collection(db, COLLECTION), data);
 }
 
-export async function listarMetricas() {
-  const snapshot = await getDocs(collection(db, COLLECTION));
+export async function listarMetricas(baseId?: string) {
+  const consulta = baseId
+    ? query(collection(db, COLLECTION), where("baseId", "==", baseId))
+    : query(collection(db, COLLECTION));
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+  const snapshot = await getDocs(consulta);
+
+  return snapshot.docs.map(
+    (documento) =>
+      ({
+        id: documento.id,
+        ...documento.data(),
+      }) as Metrica
+  );
 }
 
-export async function editarMetrica(id: string, data: any) {
+export async function editarMetrica(
+  id: string,
+  data: Partial<MetricaInput>
+) {
   await criarLog(
-  "EDITAR_METRICA",
-  `Métrica atualizada: ${id}`
-);
+    "EDITAR_METRICA",
+    `Métrica atualizada: ${id}`
+  );
+
   return updateDoc(doc(db, COLLECTION, id), data);
 }
 
 export async function excluirMetrica(id: string) {
   await criarLog(
-  "EXCLUIR_METRICA",
-  `Métrica removida: ${id}`
-);
+    "EXCLUIR_METRICA",
+    `Métrica removida: ${id}`
+  );
+
   return deleteDoc(doc(db, COLLECTION, id));
 }

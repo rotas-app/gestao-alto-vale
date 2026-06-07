@@ -15,17 +15,13 @@ import {
 import PageShell from "@/components/layout/pageshell";
 import PremiumCard from "@/components/ui/premiumCard";
 
-import { gerarRankingPorPeriodo } from "@/services/rankingService";
+import { useBase } from "@/contexts/BaseContext";
+import {
+  gerarRankingPorPeriodo,
+  type RankingItem,
+} from "@/services/rankingService";
 
 type Periodo = "dia" | "semana" | "mes";
-
-type RankingItem = {
-  motoristaNome: string;
-  totalPacotes: number;
-  totalInsucessos: number;
-  registros: number;
-  dsMedia: number;
-};
 
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
@@ -41,22 +37,27 @@ function medalha(index: number) {
 }
 
 export default function RankingsPage() {
+  const { baseAtual } = useBase();
   const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [periodo, setPeriodo] = useState<Periodo>("dia");
 
   useEffect(() => {
     let ativo = true;
 
-    gerarRankingPorPeriodo(periodo).then((data) => {
+    const carregamento = baseAtual
+      ? gerarRankingPorPeriodo(periodo, baseAtual)
+      : Promise.resolve<RankingItem[]>([]);
+
+    carregamento.then((data) => {
       if (ativo) {
-        setRanking(data as RankingItem[]);
+        setRanking(data);
       }
     });
 
     return () => {
       ativo = false;
     };
-  }, [periodo]);
+  }, [baseAtual, periodo]);
 
   const primeiro = ranking[0];
 

@@ -15,24 +15,39 @@ import {
 import PageShell from "@/components/layout/pageshell";
 import PremiumCard from "@/components/ui/premiumCard";
 
+import { useBase } from "@/contexts/BaseContext";
+import type { Metrica } from "@/types/metricas";
 import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
 import { listarMetricas } from "@/services/metricaService";
 import { gerarRankingPorPeriodo } from "@/services/rankingService";
 
 const NUMERO_WHATSAPP = "5547991232502";
 
-export default function RelatoriosPage() {
-  const [metricas, setMetricas] = useState<any[]>([]);
-  const [tipo, setTipo] = useState("geral");
+type TipoRelatorio = "geral" | "ranking";
+type LinhaExcel = Record<string, string | number>;
 
-  async function carregarDados() {
-    const data = await listarMetricas();
-    setMetricas(data as any[]);
-  }
+export default function RelatoriosPage() {
+  const { baseAtual } = useBase();
+  const [metricas, setMetricas] = useState<Metrica[]>([]);
+  const [tipo, setTipo] = useState<TipoRelatorio>("geral");
 
   useEffect(() => {
-    carregarDados();
-  }, []);
+    let ativo = true;
+
+    const carregamento = baseAtual
+      ? listarMetricas(baseAtual)
+      : Promise.resolve<Metrica[]>([]);
+
+    carregamento.then((data) => {
+      if (ativo) {
+        setMetricas(data);
+      }
+    });
+
+    return () => {
+      ativo = false;
+    };
+  }, [baseAtual]);
 
   const totalPacotes = metricas.reduce(
     (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
@@ -55,17 +70,17 @@ export default function RelatoriosPage() {
       : 0;
 
   async function exportarExcel() {
-    let dados: any[] = [];
+    let dados: LinhaExcel[] = [];
 
     if (tipo === "geral") {
       dados = metricas.map((item) => ({
         Data: item.data,
         Motorista: item.motoristaNome,
-        ID_Rota: item.idRota,
+        ID_Rota: item.idRota || "",
         Link_Mercado_Livre: item.idRota
           ? gerarLinkMercadoLivre(item.idRota)
           : "",
-        Rota_Gaiola: item.codigoGaiola,
+        Rota_Gaiola: item.codigoGaiola || "",
         Pacotes: item.qtdPacotesTotal,
         Insucessos: item.qtdPacotesNaoEntregues,
         DS: `${item.ds}%`,
@@ -73,7 +88,12 @@ export default function RelatoriosPage() {
     }
 
     if (tipo === "ranking") {
-      const ranking = await gerarRankingPorPeriodo("mes");
+      if (!baseAtual) {
+        alert("Selecione uma base antes de exportar.");
+        return;
+      }
+
+      const ranking = await gerarRankingPorPeriodo("mes", baseAtual);
 
       dados = ranking.map((item, index) => ({
         Posicao: index + 1,
@@ -162,7 +182,9 @@ ${linhas}`;
 
           <select
             value={tipo}
-            onChange={(e) => setTipo(e.target.value)}
+            onChange={(e) =>
+              setTipo(e.target.value as TipoRelatorio)
+            }
             className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white outline-none focus:border-yellow-400 transition"
           >
             <option value="geral">Relatório Geral</option>

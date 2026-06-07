@@ -13,24 +13,28 @@ import AdminOnly from "@/components/AdminOnly";
 import PageShell from "@/components/layout/pageshell";
 import PremiumCard from "@/components/ui/premiumCard";
 
+import { useBase } from "@/contexts/BaseContext";
 import { criarConviteGestor } from "@/services/conviteService";
 
 export default function UsuariosPage() {
+  const { bases } = useBase();
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [baseId, setBaseId] = useState("");
   const [linkConvite, setLinkConvite] = useState("");
 
   async function handleCriarConvite() {
-    if (!nome || !email) {
-      alert("Preencha nome e email");
+    if (!nome || !email || !baseId) {
+      alert("Preencha nome, email e base");
       return;
     }
 
-    const convite = await criarConviteGestor(nome, email);
+    const convite = await criarConviteGestor(nome, email, baseId);
 
     setLinkConvite(convite.link);
     setNome("");
     setEmail("");
+    setBaseId("");
   }
 
   async function copiarLink() {
@@ -85,6 +89,20 @@ export default function UsuariosPage() {
                   className="bg-transparent outline-none text-white placeholder:text-zinc-500 w-full"
                 />
               </div>
+
+              <select
+                value={baseId}
+                onChange={(e) => setBaseId(e.target.value)}
+                className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white outline-none focus:border-yellow-400 transition"
+              >
+                <option value="">Selecione a base do gestor</option>
+
+                {bases.map((base) => (
+                  <option key={base.id} value={base.id}>
+                    {base.nome}
+                  </option>
+                ))}
+              </select>
 
               <button
                 onClick={handleCriarConvite}

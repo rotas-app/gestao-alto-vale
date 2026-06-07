@@ -3,9 +3,13 @@ export interface Metrica {
   motoristaId: string;
   motoristaNome: string;
   data: string;
-  codigoGaiola: string;
+  codigoGaiola?: string;
+  idRota?: string;
   qtdPacotesTotal: number;
   qtdPacotesNaoEntregues: number;
-  motivoNaoEntrega: string;
+  motivoNaoEntrega?: string;
   ds: number;
+  baseId?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }

@@ -15,6 +15,9 @@ import {
 import PageShell from "@/components/layout/pageshell";
 import PremiumCard from "@/components/ui/premiumCard";
 
+import { useBase } from "@/contexts/BaseContext";
+import type { Metrica } from "@/types/metricas";
+import type { Motorista } from "@/types/motorista";
 import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
 import { listarMotoristas } from "@/services/motoristaService";
 
@@ -27,24 +30,6 @@ import {
 
 import { calcularDS } from "@/utils/calcDS";
 
-type Motorista = {
-  id: string;
-  nomeCompleto: string;
-};
-
-type Metrica = {
-  id: string;
-  motoristaId: string;
-  motoristaNome: string;
-  data: string;
-  codigoGaiola?: string;
-  idRota?: string;
-  qtdPacotesTotal: number;
-  qtdPacotesNaoEntregues: number;
-  motivoNaoEntrega?: string;
-  ds: number;
-};
-
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
   if (ds >= 95) return "text-yellow-400";
@@ -52,6 +37,8 @@ function corDS(ds: number) {
 }
 
 export default function MetricasPage() {
+  const { baseAtual } = useBase();
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const idRotaFiltro = searchParams.get("idRota") || "";
@@ -73,13 +60,15 @@ export default function MetricasPage() {
   const ds = calcularDS(Number(total), Number(insucesso));
 
   async function carregarDados() {
+    if (!baseAtual) return;
+
     const [motoristasData, metricasData] = await Promise.all([
-      listarMotoristas(),
-      listarMetricas(),
+      listarMotoristas(baseAtual),
+      listarMetricas(baseAtual),
     ]);
 
-    setMotoristas(motoristasData as Motorista[]);
-    setMetricas(metricasData as Metrica[]);
+    setMotoristas(motoristasData);
+    setMetricas(metricasData);
   }
 
   function limparFormulario() {
@@ -95,8 +84,15 @@ export default function MetricasPage() {
   }
 
   async function handleSalvar() {
+    if (!baseAtual) {
+      alert("Selecione uma base");
+      return;
+    }
+
     if (!motoristaId || !data || !idRota || !codigoGaiola || !total) {
-      alert("Preencha motorista, data, ID da rota, código da gaiola e total de pacotes");
+      alert(
+        "Preencha motorista, data, ID da rota, código da gaiola e total de pacotes"
+      );
       return;
     }
 
@@ -106,6 +102,7 @@ export default function MetricasPage() {
       data,
       codigoGaiola,
       idRota,
+      baseId: baseAtual,
       qtdPacotesTotal: Number(total),
       qtdPacotesNaoEntregues: Number(insucesso),
       motivoNaoEntrega: motivo,
@@ -126,7 +123,7 @@ export default function MetricasPage() {
     }
 
     limparFormulario();
-    carregarDados();
+    await carregarDados();
   }
 
   function handleEditar(metrica: Metrica) {
@@ -153,25 +150,30 @@ export default function MetricasPage() {
     await excluirMetrica(id);
 
     alert("Métrica excluída");
-    carregarDados();
+    await carregarDados();
   }
 
   useEffect(() => {
     let ativo = true;
 
-    Promise.all([listarMotoristas(), listarMetricas()]).then(
-      ([motoristasData, metricasData]) => {
-        if (!ativo) return;
+    const carregamento = baseAtual
+      ? Promise.all([
+          listarMotoristas(baseAtual),
+          listarMetricas(baseAtual),
+        ])
+      : Promise.resolve<[Motorista[], Metrica[]]>([[], []]);
 
-        setMotoristas(motoristasData as Motorista[]);
-        setMetricas(metricasData as Metrica[]);
-      }
-    );
+    carregamento.then(([motoristasData, metricasData]) => {
+      if (!ativo) return;
+
+      setMotoristas(motoristasData);
+      setMetricas(metricasData);
+    });
 
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [baseAtual]);
 
   const metricasDoDia = metricas
     .filter((item) => {
@@ -206,6 +208,16 @@ export default function MetricasPage() {
                 Cadastro operacional por rota.
               </p>
             </div>
+          </div>
+
+          <div className="mb-5 rounded-2xl bg-black border border-zinc-800 p-4">
+            <p className="text-zinc-500 text-sm">
+              Base operacional ativa
+            </p>
+
+            <p className="text-yellow-400 text-2xl font-black mt-1 uppercase">
+              {baseAtual || "-"}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

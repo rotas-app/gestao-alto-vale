@@ -13,6 +13,9 @@ import {
 import PageShell from "@/components/layout/pageshell";
 import PremiumCard from "@/components/ui/premiumCard";
 
+import { useBase } from "@/contexts/BaseContext";
+import type { Metrica } from "@/types/metricas";
+import type { Motorista } from "@/types/motorista";
 import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
 
 import {
@@ -25,9 +28,11 @@ import {
 import { listarMetricas } from "@/services/metricaService";
 
 export default function MotoristasPage() {
+  const { baseAtual } = useBase();
+
   const [nome, setNome] = useState("");
-  const [motoristas, setMotoristas] = useState<any[]>([]);
-  const [metricas, setMetricas] = useState<any[]>([]);
+  const [motoristas, setMotoristas] = useState<Motorista[]>([]);
+  const [metricas, setMetricas] = useState<Metrica[]>([]);
   const [busca, setBusca] = useState("");
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -35,35 +40,42 @@ export default function MotoristasPage() {
   const [observacaoEditando, setObservacaoEditando] = useState("");
 
   async function carregarDados() {
-    const motoristasData = await listarMotoristas();
-    const metricasData = await listarMetricas();
+    if (!baseAtual) return;
+
+    const [motoristasData, metricasData] = await Promise.all([
+      listarMotoristas(baseAtual),
+      listarMetricas(baseAtual),
+    ]);
 
     setMotoristas(motoristasData);
-    setMetricas(metricasData as any[]);
+    setMetricas(metricasData);
   }
 
   async function handleCriar() {
     if (!nome) return;
 
-    await criarMotorista(nome);
+    if (!baseAtual) {
+      alert("Selecione uma base antes de cadastrar motorista");
+      return;
+    }
+
+    await criarMotorista(nome, baseAtual);
 
     setNome("");
-    carregarDados();
+    await carregarDados();
   }
 
   async function handleExcluir(id: string) {
-    const confirmar = confirm(
-      "Deseja realmente excluir este motorista?"
-    );
+    const confirmar = confirm("Deseja realmente excluir este motorista?");
 
     if (!confirmar) return;
 
     await excluirMotorista(id);
 
-    carregarDados();
+    await carregarDados();
   }
 
-  function iniciarEdicao(motorista: any) {
+  function iniciarEdicao(motorista: Motorista) {
     setEditandoId(motorista.id);
     setNomeEditando(motorista.nomeCompleto || "");
     setObservacaoEditando(motorista.observacao || "");
@@ -81,7 +93,7 @@ export default function MotoristasPage() {
     setNomeEditando("");
     setObservacaoEditando("");
 
-    carregarDados();
+    await carregarDados();
 
     alert("Motorista atualizado");
   }
@@ -93,24 +105,19 @@ export default function MotoristasPage() {
   }
 
   function metricasDoMotorista(id: string) {
-    return metricas.filter(
-      (item) => item.motoristaId === id
-    );
+    return metricas.filter((item) => item.motoristaId === id);
   }
 
   function resumoMotorista(id: string) {
     const lista = metricasDoMotorista(id);
 
     const totalPacotes = lista.reduce(
-      (acc, item) =>
-        acc + Number(item.qtdPacotesTotal || 0),
+      (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
       0
     );
 
     const totalInsucessos = lista.reduce(
-      (acc, item) =>
-        acc +
-        Number(item.qtdPacotesNaoEntregues || 0),
+      (acc, item) => acc + Number(item.qtdPacotesNaoEntregues || 0),
       0
     );
 
@@ -118,11 +125,8 @@ export default function MotoristasPage() {
       lista.length > 0
         ? Number(
             (
-              lista.reduce(
-                (acc, item) =>
-                  acc + Number(item.ds || 0),
-                0
-              ) / lista.length
+              lista.reduce((acc, item) => acc + Number(item.ds || 0), 0) /
+              lista.length
             ).toFixed(2)
           )
         : 0;
@@ -142,13 +146,29 @@ export default function MotoristasPage() {
   }
 
   useEffect(() => {
-    carregarDados();
-  }, []);
+    let ativo = true;
+
+    const carregamento = baseAtual
+      ? Promise.all([
+          listarMotoristas(baseAtual),
+          listarMetricas(baseAtual),
+        ])
+      : Promise.resolve<[Motorista[], Metrica[]]>([[], []]);
+
+    carregamento.then(([motoristasData, metricasData]) => {
+      if (!ativo) return;
+
+      setMotoristas(motoristasData);
+      setMetricas(metricasData);
+    });
+
+    return () => {
+      ativo = false;
+    };
+  }, [baseAtual]);
 
   const filtrados = motoristas.filter((m) =>
-    m.nomeCompleto
-      ?.toLowerCase()
-      .includes(busca.toLowerCase())
+    m.nomeCompleto?.toLowerCase().includes(busca.toLowerCase())
   );
 
   return (
@@ -160,10 +180,7 @@ export default function MotoristasPage() {
         <PremiumCard className="xl:col-span-2">
           <div className="flex items-center gap-3 mb-6">
             <div className="h-12 w-12 rounded-2xl bg-yellow-400/15 border border-yellow-400/20 flex items-center justify-center">
-              <UserPlus
-                size={22}
-                className="text-yellow-400"
-              />
+              <UserPlus size={22} className="text-yellow-400" />
             </div>
 
             <div>
@@ -179,9 +196,7 @@ export default function MotoristasPage() {
 
           <input
             value={nome}
-            onChange={(e) =>
-              setNome(e.target.value)
-            }
+            onChange={(e) => setNome(e.target.value)}
             placeholder="Nome completo"
             className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500 outline-none focus:border-yellow-400 transition"
           />
@@ -196,10 +211,7 @@ export default function MotoristasPage() {
 
         <PremiumCard>
           <div className="flex items-center gap-3 mb-5">
-            <Activity
-              className="text-yellow-400"
-              size={22}
-            />
+            <Activity className="text-yellow-400" size={22} />
 
             <h2 className="text-white text-2xl font-black">
               Buscar
@@ -208,9 +220,7 @@ export default function MotoristasPage() {
 
           <input
             value={busca}
-            onChange={(e) =>
-              setBusca(e.target.value)
-            }
+            onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar motorista..."
             className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500 outline-none focus:border-yellow-400 transition"
           />
@@ -219,19 +229,11 @@ export default function MotoristasPage() {
 
       <div className="space-y-5">
         {filtrados.map((motorista) => {
-          const resumo = resumoMotorista(
-            motorista.id
-          );
-
-          const historico = metricasDoMotorista(
-            motorista.id
-          );
+          const resumo = resumoMotorista(motorista.id);
+          const historico = metricasDoMotorista(motorista.id);
 
           return (
-            <details
-              key={motorista.id}
-              className="group"
-            >
+            <details key={motorista.id} className="group">
               <summary className="list-none cursor-pointer">
                 <PremiumCard className="hover:border-yellow-400/40 transition">
                   <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
@@ -247,9 +249,7 @@ export default function MotoristasPage() {
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="rounded-2xl bg-black border border-zinc-800 p-4">
-                        <p className="text-zinc-500 text-xs">
-                          DS média
-                        </p>
+                        <p className="text-zinc-500 text-xs">DS média</p>
 
                         <p
                           className={`text-2xl font-black mt-1 ${corDS(
@@ -261,9 +261,7 @@ export default function MotoristasPage() {
                       </div>
 
                       <div className="rounded-2xl bg-black border border-zinc-800 p-4">
-                        <p className="text-zinc-500 text-xs">
-                          Pacotes
-                        </p>
+                        <p className="text-zinc-500 text-xs">Pacotes</p>
 
                         <p className="text-yellow-400 text-2xl font-black mt-1">
                           {resumo.totalPacotes}
@@ -271,9 +269,7 @@ export default function MotoristasPage() {
                       </div>
 
                       <div className="rounded-2xl bg-black border border-zinc-800 p-4">
-                        <p className="text-zinc-500 text-xs">
-                          Insucessos
-                        </p>
+                        <p className="text-zinc-500 text-xs">Insucessos</p>
 
                         <p className="text-red-400 text-2xl font-black mt-1">
                           {resumo.totalInsucessos}
@@ -281,9 +277,7 @@ export default function MotoristasPage() {
                       </div>
 
                       <div className="rounded-2xl bg-black border border-zinc-800 p-4">
-                        <p className="text-zinc-500 text-xs">
-                          Registros
-                        </p>
+                        <p className="text-zinc-500 text-xs">Registros</p>
 
                         <p className="text-white text-2xl font-black mt-1">
                           {resumo.totalRegistros}
@@ -300,11 +294,7 @@ export default function MotoristasPage() {
                     <div className="space-y-4">
                       <input
                         value={nomeEditando}
-                        onChange={(e) =>
-                          setNomeEditando(
-                            e.target.value
-                          )
-                        }
+                        onChange={(e) => setNomeEditando(e.target.value)}
                         className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white"
                         placeholder="Nome completo"
                       />
@@ -312,9 +302,7 @@ export default function MotoristasPage() {
                       <textarea
                         value={observacaoEditando}
                         onChange={(e) =>
-                          setObservacaoEditando(
-                            e.target.value
-                          )
+                          setObservacaoEditando(e.target.value)
                         }
                         className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white"
                         placeholder="Observações"
@@ -362,10 +350,7 @@ export default function MotoristasPage() {
                       </p>
                     </div>
 
-                    <Truck
-                      className="text-yellow-400"
-                      size={24}
-                    />
+                    <Truck className="text-yellow-400" size={24} />
                   </div>
 
                   <div className="space-y-3">
@@ -384,9 +369,7 @@ export default function MotoristasPage() {
                               ID Rota:{" "}
                               {item.idRota ? (
                                 <a
-                                  href={gerarLinkMercadoLivre(
-                                    item.idRota
-                                  )}
+                                  href={gerarLinkMercadoLivre(item.idRota)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-yellow-400 underline font-bold"
@@ -396,34 +379,20 @@ export default function MotoristasPage() {
                               ) : (
                                 "-"
                               )}{" "}
-                              | Gaiola:{" "}
-                              {item.codigoGaiola ||
-                                "-"}
+                              | Gaiola: {item.codigoGaiola || "-"}
                             </p>
 
                             <p className="text-zinc-500 text-sm mt-1">
-                              Pacotes:{" "}
-                              {
-                                item.qtdPacotesTotal
-                              }{" "}
-                              | Insucessos:{" "}
-                              {
-                                item.qtdPacotesNaoEntregues
-                              }
+                              Pacotes: {item.qtdPacotesTotal} | Insucessos:{" "}
+                              {item.qtdPacotesNaoEntregues}
                             </p>
 
                             <p className="text-zinc-600 text-sm mt-1">
-                              Motivo:{" "}
-                              {item.motivoNaoEntrega ||
-                                "-"}
+                              Motivo: {item.motivoNaoEntrega || "-"}
                             </p>
                           </div>
 
-                          <div
-                            className={`text-4xl font-black ${corDS(
-                              item.ds
-                            )}`}
-                          >
+                          <div className={`text-4xl font-black ${corDS(item.ds)}`}>
                             {item.ds}%
                           </div>
                         </div>
@@ -435,8 +404,7 @@ export default function MotoristasPage() {
                         <AlertTriangle className="mx-auto text-zinc-600 mb-3" />
 
                         <p className="text-zinc-400">
-                          Nenhuma métrica cadastrada
-                          para este motorista.
+                          Nenhuma métrica cadastrada para este motorista.
                         </p>
                       </div>
                     )}
@@ -445,9 +413,7 @@ export default function MotoristasPage() {
 
                 <div className="flex flex-wrap gap-3">
                   <button
-                    onClick={() =>
-                      iniciarEdicao(motorista)
-                    }
+                    onClick={() => iniciarEdicao(motorista)}
                     className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black px-5 py-3 rounded-2xl transition"
                   >
                     <Pencil size={18} />
@@ -455,9 +421,7 @@ export default function MotoristasPage() {
                   </button>
 
                   <button
-                    onClick={() =>
-                      handleExcluir(motorista.id)
-                    }
+                    onClick={() => handleExcluir(motorista.id)}
                     className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-black px-5 py-3 rounded-2xl transition"
                   >
                     <Trash2 size={18} />

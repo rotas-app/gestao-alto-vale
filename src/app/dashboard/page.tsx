@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -28,9 +29,13 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import ProtectedPage from "@/components/ProtectedPage";
 
+import { useBase } from "@/contexts/BaseContext";
 import { listarMotoristas } from "@/services/motoristaService";
 import { listarMetricas } from "@/services/metricaService";
-import { gerarRankingPorPeriodo } from "@/services/rankingService";
+import {
+  gerarRankingPorPeriodo,
+  type RankingItem,
+} from "@/services/rankingService";
 
 interface DashboardData {
   totalMotoristas: number;
@@ -45,6 +50,27 @@ interface DashboardData {
   metricasCriticas: number;
 }
 
+const DASHBOARD_VAZIO: DashboardData = {
+  totalMotoristas: 0,
+  totalMetricas: 0,
+  totalPacotes: 0,
+  totalInsucessos: 0,
+  dsMedia: 0,
+  melhorMotorista: "-",
+  melhorDS: 0,
+  piorMotorista: "-",
+  piorDS: 0,
+  metricasCriticas: 0,
+};
+
+interface CardProps {
+  title: string;
+  value: ReactNode;
+  icon: LucideIcon;
+  valueClass?: string;
+  highlight?: boolean;
+}
+
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
   if (ds >= 95) return "text-yellow-400";
@@ -57,7 +83,7 @@ function Card({
   icon: Icon,
   valueClass = "text-white",
   highlight = false,
-}: any) {
+}: CardProps) {
   return (
     <div
       className={`
@@ -86,75 +112,84 @@ function Card({
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData>({
-    totalMotoristas: 0,
-    totalMetricas: 0,
-    totalPacotes: 0,
-    totalInsucessos: 0,
-    dsMedia: 0,
-    melhorMotorista: "-",
-    melhorDS: 0,
-    piorMotorista: "-",
-    piorDS: 0,
-    metricasCriticas: 0,
-  });
-
-  const [ranking, setRanking] = useState<any[]>([]);
-
-  async function carregarDashboard() {
-    const motoristas = await listarMotoristas();
-    const metricas: any[] = await listarMetricas();
-    const rankingData = await gerarRankingPorPeriodo("mes");
-
-    const totalPacotes = metricas.reduce(
-      (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
-      0
-    );
-
-    const totalInsucessos = metricas.reduce(
-      (acc, item) => acc + Number(item.qtdPacotesNaoEntregues || 0),
-      0
-    );
-
-    const dsMedia =
-      metricas.length > 0
-        ? Number(
-            (
-              metricas.reduce((acc, item) => acc + Number(item.ds || 0), 0) /
-              metricas.length
-            ).toFixed(2)
-          )
-        : 0;
-
-    const metricasCriticas = metricas.filter(
-      (item) => Number(item.ds || 0) < 95
-    ).length;
-
-    const pior =
-      rankingData.length > 0 ? rankingData[rankingData.length - 1] : null;
-
-    setRanking(rankingData.slice(0, 5));
-
-    setData({
-      totalMotoristas: motoristas.length,
-      totalMetricas: metricas.length,
-      totalPacotes,
-      totalInsucessos,
-      dsMedia,
-      melhorMotorista: rankingData[0]?.motoristaNome || "-",
-      melhorDS: rankingData[0]?.dsMedia || 0,
-      piorMotorista: pior?.motoristaNome || "-",
-      piorDS: pior?.dsMedia || 0,
-      metricasCriticas,
-    });
-  }
+  const { baseAtual } = useBase();
+  const [data, setData] = useState<DashboardData>(DASHBOARD_VAZIO);
+  const [ranking, setRanking] = useState<RankingItem[]>([]);
 
   useEffect(() => {
-    carregarDashboard();
-  }, []);
+    let ativo = true;
+
+    async function carregarDashboard() {
+      if (!baseAtual) {
+        return {
+          data: DASHBOARD_VAZIO,
+          ranking: [],
+        };
+      }
+
+      const [motoristas, metricas, rankingData] = await Promise.all([
+        listarMotoristas(baseAtual),
+        listarMetricas(baseAtual),
+        gerarRankingPorPeriodo("mes", baseAtual),
+      ]);
+
+      const totalPacotes = metricas.reduce(
+        (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
+        0
+      );
+      const totalInsucessos = metricas.reduce(
+        (acc, item) => acc + Number(item.qtdPacotesNaoEntregues || 0),
+        0
+      );
+      const dsMedia =
+        metricas.length > 0
+          ? Number(
+              (
+                metricas.reduce(
+                  (acc, item) => acc + Number(item.ds || 0),
+                  0
+                ) / metricas.length
+              ).toFixed(2)
+            )
+          : 0;
+      const pior = rankingData.at(-1);
+
+      return {
+        ranking: rankingData.slice(0, 5),
+        data: {
+          totalMotoristas: motoristas.length,
+          totalMetricas: metricas.length,
+          totalPacotes,
+          totalInsucessos,
+          dsMedia,
+          melhorMotorista: rankingData[0]?.motoristaNome || "-",
+          melhorDS: rankingData[0]?.dsMedia || 0,
+          piorMotorista: pior?.motoristaNome || "-",
+          piorDS: pior?.dsMedia || 0,
+          metricasCriticas: metricas.filter(
+            (item) => Number(item.ds || 0) < 95
+          ).length,
+        },
+      };
+    }
+
+    void carregarDashboard().then((resultado) => {
+      if (!ativo) return;
+
+      setData(resultado.data);
+      setRanking(resultado.ranking);
+    });
+
+    return () => {
+      ativo = false;
+    };
+  }, [baseAtual]);
 
   const graficoPacotes = [
-    { nome: "Entregues", valor: Math.max(data.totalPacotes - data.totalInsucessos, 0) },
+    {
+      nome: "Entregues",
+      valor: Math.max(data.totalPacotes - data.totalInsucessos, 0),
+    },
     { nome: "Insucessos", valor: data.totalInsucessos },
   ];
 
@@ -298,7 +333,11 @@ export default function DashboardPage() {
                           color: "#fff",
                         }}
                       />
-                      <Bar dataKey="dsMedia" fill="#facc15" radius={[12, 12, 0, 0]} />
+                      <Bar
+                        dataKey="dsMedia"
+                        fill="#facc15"
+                        radius={[12, 12, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

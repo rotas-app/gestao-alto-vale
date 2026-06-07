@@ -16,9 +16,20 @@ import {
 
 import { auth, db } from "@/lib/firebase";
 
+export interface Convite {
+  id: string;
+  nome: string;
+  email: string;
+  baseId?: string;
+  cargo: "gestor";
+  status: "pendente" | "aceito";
+  token: string;
+}
+
 export async function criarConviteGestor(
   nome: string,
-  email: string
+  email: string,
+  baseId: string
 ) {
   const token = crypto.randomUUID();
 
@@ -27,6 +38,7 @@ export async function criarConviteGestor(
     {
       nome,
       email,
+      baseId,
       cargo: "gestor",
       token,
       status: "pendente",
@@ -61,7 +73,7 @@ export async function buscarConvitePorToken(
   return {
     id: documento.id,
     ...documento.data(),
-  } as any;
+  } as Convite;
 }
 
 export async function aceitarConvite(
@@ -79,6 +91,10 @@ export async function aceitarConvite(
     throw new Error("Convite já utilizado");
   }
 
+  if (!convite.baseId) {
+    throw new Error("Este convite não possui uma base vinculada");
+  }
+
   const cred =
     await createUserWithEmailAndPassword(
       auth,
@@ -92,6 +108,7 @@ export async function aceitarConvite(
       uid: cred.user.uid,
       nome: convite.nome,
       email: convite.email,
+      baseId: convite.baseId,
       cargo: "gestor",
       status: "ativo",
       createdAt: new Date(),

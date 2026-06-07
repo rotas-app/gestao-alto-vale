@@ -2,7 +2,6 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { addHeader, addFooter } from "@/utils/pdfHelpers"
 import { corDS } from "@/services/dsService"
-import { Metrica } from "@/types/metrica"
 
 interface DadosRelatorioSemanal {
   motoristaNome: string

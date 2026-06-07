@@ -1,21 +1,30 @@
 import { listarMetricas } from "./metricaService";
 
-export async function gerarRankingPorPeriodo(
-  periodo: "dia" | "semana" | "mes"
-) {
-  const metricas: any[] = await listarMetricas();
+export interface RankingItem {
+  motoristaNome: string;
+  totalPacotes: number;
+  totalInsucessos: number;
+  totalDS: number;
+  registros: number;
+  dsMedia: number;
+}
 
+type RankingAcumulado = Omit<RankingItem, "dsMedia">;
+
+export async function gerarRankingPorPeriodo(
+  periodo: "dia" | "semana" | "mes",
+  baseId?: string
+) {
+  const metricas = await listarMetricas(baseId);
   const hoje = new Date();
 
   const filtradas = metricas.filter((item) => {
     if (!item.data) return false;
 
-    const data = new Date(item.data);
+    const data = new Date(`${item.data}T00:00:00`);
 
     if (periodo === "dia") {
-      return (
-        data.toDateString() === hoje.toDateString()
-      );
+      return data.toDateString() === hoje.toDateString();
     }
 
     if (periodo === "semana") {
@@ -23,20 +32,16 @@ export async function gerarRankingPorPeriodo(
         (hoje.getTime() - data.getTime()) /
         (1000 * 60 * 60 * 24);
 
-      return diff <= 7;
+      return diff >= 0 && diff <= 7;
     }
 
-    if (periodo === "mes") {
-      return (
-        data.getMonth() === hoje.getMonth() &&
-        data.getFullYear() === hoje.getFullYear()
-      );
-    }
-
-    return true;
+    return (
+      data.getMonth() === hoje.getMonth() &&
+      data.getFullYear() === hoje.getFullYear()
+    );
   });
 
-  const agrupado: any = {};
+  const agrupado: Record<string, RankingAcumulado> = {};
 
   filtradas.forEach((item) => {
     if (!agrupado[item.motoristaId]) {
@@ -49,24 +54,20 @@ export async function gerarRankingPorPeriodo(
       };
     }
 
-    agrupado[item.motoristaId].totalPacotes +=
-      Number(item.qtdPacotesTotal || 0);
+    const motorista = agrupado[item.motoristaId];
 
-    agrupado[item.motoristaId].totalInsucessos +=
-      Number(item.qtdPacotesNaoEntregues || 0);
-
-    agrupado[item.motoristaId].totalDS +=
-      Number(item.ds || 0);
-
-    agrupado[item.motoristaId].registros += 1;
+    motorista.totalPacotes += Number(item.qtdPacotesTotal || 0);
+    motorista.totalInsucessos += Number(
+      item.qtdPacotesNaoEntregues || 0
+    );
+    motorista.totalDS += Number(item.ds || 0);
+    motorista.registros += 1;
   });
 
   return Object.values(agrupado)
-    .map((item: any) => ({
+    .map<RankingItem>((item) => ({
       ...item,
-      dsMedia: Number(
-        (item.totalDS / item.registros).toFixed(2)
-      ),
+      dsMedia: Number((item.totalDS / item.registros).toFixed(2)),
     }))
-    .sort((a: any, b: any) => b.dsMedia - a.dsMedia);
+    .sort((a, b) => b.dsMedia - a.dsMedia);
 }
