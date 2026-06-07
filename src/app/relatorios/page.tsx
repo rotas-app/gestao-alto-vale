@@ -7,6 +7,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import ProtectedPage from "@/components/ProtectedPage";
 
+import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
 import { listarMetricas } from "@/services/metricaService";
 import { gerarRankingPorPeriodo } from "@/services/rankingService";
 
@@ -53,6 +54,9 @@ export default function RelatoriosPage() {
         Data: item.data,
         Motorista: item.motoristaNome,
         ID_Rota: item.idRota,
+        Link_Mercado_Livre: item.idRota
+          ? gerarLinkMercadoLivre(item.idRota)
+          : "",
         Rota_Gaiola: item.codigoGaiola,
         Pacotes: item.qtdPacotesTotal,
         Insucessos: item.qtdPacotesNaoEntregues,
@@ -86,9 +90,15 @@ export default function RelatoriosPage() {
       .slice(0, 20)
       .map(
         (item) =>
-          `• ${item.motoristaNome} | ID ${item.idRota || "-"} | Gaiola ${item.codigoGaiola || "-"} | DS ${
-            item.ds
-          }% | ${item.qtdPacotesTotal} pct | ${item.qtdPacotesNaoEntregues} ins.`
+          `• ${item.motoristaNome} | ID ${item.idRota || "-"} | Gaiola ${
+            item.codigoGaiola || "-"
+          } | DS ${item.ds}% | ${item.qtdPacotesTotal} pct | ${
+            item.qtdPacotesNaoEntregues
+          } ins.${
+            item.idRota
+              ? `\n  Link: ${gerarLinkMercadoLivre(item.idRota)}`
+              : ""
+          }`
       )
       .join("\n");
 
@@ -103,26 +113,19 @@ Métricas por rota:
 ${linhas}`;
   }
 
-function enviarWhatsapp() {
+  function enviarWhatsapp() {
+    if (!NUMERO_WHATSAPP) {
+      alert("Configure o número do WhatsApp.");
+      return;
+    }
 
-  if (!NUMERO_WHATSAPP) {
-    alert(
-      "Configure o número do WhatsApp."
+    const mensagem = encodeURIComponent(gerarMensagemWhatsapp());
+
+    window.open(
+      `https://wa.me/${NUMERO_WHATSAPP}?text=${mensagem}`,
+      "_blank"
     );
-
-    return;
   }
-
-  const mensagem =
-    encodeURIComponent(
-      gerarMensagemWhatsapp()
-    );
-
-  window.open(
-    `https://wa.me/${NUMERO_WHATSAPP}?text=${mensagem}`,
-    "_blank"
-  );
-}
 
   return (
     <ProtectedPage>
@@ -209,7 +212,20 @@ function enviarWhatsapp() {
                     </p>
 
                     <p className="text-zinc-400 text-sm">
-                      {item.data} • ID Rota: {item.idRota || "-"} • Gaiola: {item.codigoGaiola || "-"}
+                      {item.data} • ID Rota:{" "}
+                      {item.idRota ? (
+                        <a
+                          href={gerarLinkMercadoLivre(item.idRota)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-yellow-400 underline font-bold"
+                        >
+                          {item.idRota}
+                        </a>
+                      ) : (
+                        "-"
+                      )}{" "}
+                      • Gaiola: {item.codigoGaiola || "-"}
                     </p>
 
                     <p className="text-zinc-500 text-sm">

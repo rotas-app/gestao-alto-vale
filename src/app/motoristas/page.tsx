@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import ProtectedPage from "@/components/ProtectedPage";
+
+import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
 
 import {
   criarMotorista,
@@ -13,7 +16,6 @@ import {
 } from "@/services/motoristaService";
 
 import { listarMetricas } from "@/services/metricaService";
-import ProtectedPage from "@/components/ProtectedPage";
 
 export default function MotoristasPage() {
   const [nome, setNome] = useState("");
@@ -131,192 +133,205 @@ export default function MotoristasPage() {
   );
 
   return (
-  <ProtectedPage>
-    <div className="flex flex-col md:flex-row">
-      <Sidebar />
+    <ProtectedPage>
+      <div className="flex flex-col md:flex-row">
+        <Sidebar />
 
-      <div className="flex-1">
-        <Header />
+        <div className="flex-1">
+          <Header />
 
-        <main className="p-6 bg-zinc-950 min-h-screen">
-          <h1 className="text-3xl text-yellow-400 font-bold mb-6">
-            Motoristas
-          </h1>
+          <main className="p-6 bg-zinc-950 min-h-screen">
+            <h1 className="text-3xl text-yellow-400 font-bold mb-6">
+              Motoristas
+            </h1>
 
-          <div className="bg-zinc-900 p-4 rounded mb-6">
-            <input
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome completo"
-              className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 mb-4"
-            />
+            <div className="bg-zinc-900 p-4 rounded mb-6">
+              <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Nome completo"
+                className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 mb-4 placeholder:text-zinc-400"
+              />
 
-            <button
-              onClick={handleCriar}
-              className="bg-yellow-400 text-white font-bold px-6 py-3 rounded"
-            >
-              Cadastrar Motorista
-            </button>
-          </div>
+              <button
+                onClick={handleCriar}
+                className="bg-yellow-400 text-black font-bold px-6 py-3 rounded"
+              >
+                Cadastrar Motorista
+              </button>
+            </div>
 
-          <div className="bg-zinc-900 p-4 rounded mb-6">
-            <input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar motorista..."
-              className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700"
-            />
-          </div>
+            <div className="bg-zinc-900 p-4 rounded mb-6">
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar motorista..."
+                className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 placeholder:text-zinc-400"
+              />
+            </div>
 
-          <div className="space-y-4">
-            {filtrados.map((motorista) => {
-              const resumo = resumoMotorista(motorista.id);
-              const historico = metricasDoMotorista(motorista.id);
+            <div className="space-y-4">
+              {filtrados.map((motorista) => {
+                const resumo = resumoMotorista(motorista.id);
+                const historico = metricasDoMotorista(motorista.id);
 
-              return (
-                <details key={motorista.id} className="bg-zinc-900 rounded">
-                  <summary className="cursor-pointer p-4 text-white font-bold">
-                    {motorista.nomeCompleto}
-                  </summary>
+                return (
+                  <details key={motorista.id} className="bg-zinc-900 rounded">
+                    <summary className="cursor-pointer p-4 text-white font-bold">
+                      {motorista.nomeCompleto}
+                    </summary>
 
-                  <div className="p-4 border-t border-zinc-700 space-y-4">
-                    {editandoId === motorista.id ? (
-                      <div className="bg-black p-4 rounded border border-yellow-400 space-y-3">
-                        <input
-                          value={nomeEditando}
-                          onChange={(e) => setNomeEditando(e.target.value)}
-                          className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700"
-                          placeholder="Nome completo"
-                        />
+                    <div className="p-4 border-t border-zinc-700 space-y-4">
+                      {editandoId === motorista.id ? (
+                        <div className="bg-black p-4 rounded border border-yellow-400 space-y-3">
+                          <input
+                            value={nomeEditando}
+                            onChange={(e) => setNomeEditando(e.target.value)}
+                            className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 placeholder:text-zinc-400"
+                            placeholder="Nome completo"
+                          />
 
-                        <textarea
-                          value={observacaoEditando}
-                          onChange={(e) =>
-                            setObservacaoEditando(e.target.value)
-                          }
-                          className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700"
-                          placeholder="Observações do motorista"
-                        />
+                          <textarea
+                            value={observacaoEditando}
+                            onChange={(e) =>
+                              setObservacaoEditando(e.target.value)
+                            }
+                            className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 placeholder:text-zinc-400"
+                            placeholder="Observações do motorista"
+                          />
 
-                        <div className="flex gap-2">
-                          <button
-                            onClick={salvarEdicao}
-                            className="bg-yellow-400 text-white px-4 py-2 rounded font-bold"
+                          <div className="flex gap-2">
+                            <button
+                              onClick={salvarEdicao}
+                              className="bg-yellow-400 text-black px-4 py-2 rounded font-bold"
+                            >
+                              Salvar
+                            </button>
+
+                            <button
+                              onClick={cancelarEdicao}
+                              className="bg-zinc-700 text-white px-4 py-2 rounded font-bold"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-black p-4 rounded border border-zinc-800">
+                          <p className="text-zinc-400 text-sm">Observações</p>
+
+                          <p className="text-white">
+                            {motorista.observacao ||
+                              "Sem observações cadastradas."}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="bg-black p-4 rounded">
+                          <p className="text-zinc-400 text-sm">DS média</p>
+                          <p
+                            className={`text-2xl font-bold ${corDS(
+                              resumo.dsMedia
+                            )}`}
                           >
-                            Salvar
-                          </button>
+                            {resumo.dsMedia}%
+                          </p>
+                        </div>
 
-                          <button
-                            onClick={cancelarEdicao}
-                            className="bg-zinc-700 text-white px-4 py-2 rounded font-bold"
-                          >
-                            Cancelar
-                          </button>
+                        <div className="bg-black p-4 rounded">
+                          <p className="text-zinc-400 text-sm">Pacotes</p>
+                          <p className="text-yellow-400 text-2xl font-bold">
+                            {resumo.totalPacotes}
+                          </p>
+                        </div>
+
+                        <div className="bg-black p-4 rounded">
+                          <p className="text-zinc-400 text-sm">Insucessos</p>
+                          <p className="text-red-400 text-2xl font-bold">
+                            {resumo.totalInsucessos}
+                          </p>
+                        </div>
+
+                        <div className="bg-black p-4 rounded">
+                          <p className="text-zinc-400 text-sm">Registros</p>
+                          <p className="text-white text-2xl font-bold">
+                            {resumo.totalRegistros}
+                          </p>
                         </div>
                       </div>
-                    ) : (
-                      <div className="bg-black p-4 rounded border border-zinc-800">
-                        <p className="text-zinc-400 text-sm">Observações</p>
 
-                        <p className="text-white">
-                          {motorista.observacao ||
-                            "Sem observações cadastradas."}
-                        </p>
+                      <div>
+                        <h3 className="text-yellow-400 font-bold mb-2">
+                          Histórico
+                        </h3>
+
+                        <div className="space-y-2">
+                          {historico.map((item) => (
+                            <div
+                              key={item.id}
+                              className="bg-black rounded p-3 border border-zinc-800"
+                            >
+                              <p className="text-white font-bold">
+                                {item.data} — DS {item.ds}%
+                              </p>
+
+                              <p className="text-zinc-400 text-sm">
+                                ID Rota:{" "}
+                                {item.idRota ? (
+                                  <a
+                                    href={gerarLinkMercadoLivre(item.idRota)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-yellow-400 underline font-bold"
+                                  >
+                                    {item.idRota}
+                                  </a>
+                                ) : (
+                                  "-"
+                                )}{" "}
+                                | Gaiola: {item.codigoGaiola || "-"} | Pacotes:{" "}
+                                {item.qtdPacotesTotal} | Insucessos:{" "}
+                                {item.qtdPacotesNaoEntregues}
+                              </p>
+
+                              <p className="text-zinc-500 text-sm">
+                                Motivo: {item.motivoNaoEntrega || "-"}
+                              </p>
+                            </div>
+                          ))}
+
+                          {historico.length === 0 && (
+                            <p className="text-zinc-400">
+                              Nenhuma métrica cadastrada para este motorista.
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div className="bg-black p-4 rounded">
-                        <p className="text-zinc-400 text-sm">DS média</p>
-                        <p
-                          className={`text-2xl font-bold ${corDS(
-                            resumo.dsMedia
-                          )}`}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => iniciarEdicao(motorista)}
+                          className="bg-yellow-400 text-black px-4 py-2 rounded font-bold"
                         >
-                          {resumo.dsMedia}%
-                        </p>
-                      </div>
+                          Editar Motorista
+                        </button>
 
-                      <div className="bg-black p-4 rounded">
-                        <p className="text-zinc-400 text-sm">Pacotes</p>
-                        <p className="text-yellow-400 text-2xl font-bold">
-                          {resumo.totalPacotes}
-                        </p>
-                      </div>
-
-                      <div className="bg-black p-4 rounded">
-                        <p className="text-zinc-400 text-sm">Insucessos</p>
-                        <p className="text-red-400 text-2xl font-bold">
-                          {resumo.totalInsucessos}
-                        </p>
-                      </div>
-
-                      <div className="bg-black p-4 rounded">
-                        <p className="text-zinc-400 text-sm">Registros</p>
-                        <p className="text-white text-2xl font-bold">
-                          {resumo.totalRegistros}
-                        </p>
+                        <button
+                          onClick={() => handleExcluir(motorista.id)}
+                          className="bg-red-600 text-white px-4 py-2 rounded"
+                        >
+                          Excluir Motorista
+                        </button>
                       </div>
                     </div>
-
-                    <div>
-                      <h3 className="text-yellow-400 font-bold mb-2">
-                        Histórico
-                      </h3>
-
-                      <div className="space-y-2">
-                        {historico.map((item) => (
-                          <div
-                            key={item.id}
-                            className="bg-black rounded p-3 border border-zinc-800"
-                          >
-                            <p className="text-white font-bold">
-                              {item.data} — DS {item.ds}%
-                            </p>
-
-                            <p className="text-zinc-400 text-sm">
-                              Gaiola: {item.codigoGaiola || "-"} | Pacotes:{" "}
-                              {item.qtdPacotesTotal} | Insucessos:{" "}
-                              {item.qtdPacotesNaoEntregues}
-                            </p>
-
-                            <p className="text-zinc-500 text-sm">
-                              Motivo: {item.motivoNaoEntrega || "-"}
-                            </p>
-                          </div>
-                        ))}
-
-                        {historico.length === 0 && (
-                          <p className="text-zinc-400">
-                            Nenhuma métrica cadastrada para este motorista.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => iniciarEdicao(motorista)}
-                        className="bg-yellow-400 text-white px-4 py-2 rounded font-bold"
-                      >
-                        Editar Motorista
-                      </button>
-
-                      <button
-                        onClick={() => handleExcluir(motorista.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded"
-                      >
-                        Excluir Motorista
-                      </button>
-                    </div>
-                  </div>
-                </details>
-              );
-            })}
-          </div>
-        </main>
+                  </details>
+                );
+              })}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
-  </ProtectedPage>
-);
+    </ProtectedPage>
+  );
 }

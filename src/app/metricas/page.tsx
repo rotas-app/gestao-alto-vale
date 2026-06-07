@@ -6,6 +6,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import ProtectedPage from "@/components/ProtectedPage";
 
+import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
 import { listarMotoristas } from "@/services/motoristaService";
 
 import {
@@ -48,17 +49,19 @@ export default function MetricasPage() {
     setMotoristaNome("");
     setData("");
     setCodigoGaiola("");
+    setIdRota("");
     setTotal("");
     setInsucesso("");
     setMotivo("");
-    setIdRota("");
   }
 
   async function handleSalvar() {
     if (!motoristaId || !data || !idRota || !codigoGaiola || !total) {
-  alert("Preencha motorista, data, ID da rota, código da gaiola e total de pacotes");
-  return;
-}
+      alert(
+        "Preencha motorista, data, ID da rota, código da gaiola e total de pacotes"
+      );
+      return;
+    }
 
     const payload = {
       motoristaId,
@@ -139,7 +142,7 @@ export default function MetricasPage() {
 
             <div className="bg-zinc-900 p-6 rounded space-y-4 mb-8">
               {editandoId && (
-                <div className="bg-yellow-400 text-white p-3 rounded font-bold">
+                <div className="bg-yellow-400 text-black p-3 rounded font-bold">
                   Editando métrica
                 </div>
               )}
@@ -171,12 +174,14 @@ export default function MetricasPage() {
                 onChange={(e) => setData(e.target.value)}
                 className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700"
               />
+
               <input
                 placeholder="ID da Rota"
                 value={idRota}
                 onChange={(e) => setIdRota(e.target.value)}
                 className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 placeholder:text-zinc-400"
               />
+
               <input
                 placeholder="Código da Gaiola / Rota"
                 value={codigoGaiola}
@@ -216,7 +221,7 @@ export default function MetricasPage() {
               <div className="flex gap-3">
                 <button
                   onClick={handleSalvar}
-                  className="bg-yellow-400 text-white font-bold px-6 py-3 rounded"
+                  className="bg-yellow-400 text-black font-bold px-6 py-3 rounded"
                 >
                   {editandoId ? "Salvar Alterações" : "Salvar Métrica da Rota"}
                 </button>
@@ -253,8 +258,20 @@ export default function MetricasPage() {
                       </p>
 
                       <p className="text-zinc-400 text-sm">
-                        Data: {metrica.data} | ID Rota: {metrica.idRota || "-"} | Gaiola:{" "}
-                        {metrica.codigoGaiola || "-"}
+                        Data: {metrica.data} | ID Rota:{" "}
+                        {metrica.idRota ? (
+                          <a
+                            href={gerarLinkMercadoLivre(metrica.idRota)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-yellow-400 underline font-bold"
+                          >
+                            {metrica.idRota}
+                          </a>
+                        ) : (
+                          "-"
+                        )}{" "}
+                        | Gaiola: {metrica.codigoGaiola || "-"}
                       </p>
 
                       <p className="text-zinc-400 text-sm">
@@ -269,7 +286,7 @@ export default function MetricasPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEditar(metrica)}
-                        className="bg-yellow-400 text-white px-4 py-2 rounded font-bold"
+                        className="bg-yellow-400 text-black px-4 py-2 rounded font-bold"
                       >
                         Editar
                       </button>
