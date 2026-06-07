@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
   Calendar,
@@ -26,6 +27,24 @@ import {
 
 import { calcularDS } from "@/utils/calcDS";
 
+type Motorista = {
+  id: string;
+  nomeCompleto: string;
+};
+
+type Metrica = {
+  id: string;
+  motoristaId: string;
+  motoristaNome: string;
+  data: string;
+  codigoGaiola?: string;
+  idRota?: string;
+  qtdPacotesTotal: number;
+  qtdPacotesNaoEntregues: number;
+  motivoNaoEntrega?: string;
+  ds: number;
+};
+
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
   if (ds >= 95) return "text-yellow-400";
@@ -33,39 +52,34 @@ function corDS(ds: number) {
 }
 
 export default function MetricasPage() {
-  const [motoristas, setMotoristas] = useState<any[]>([]);
-  const [metricas, setMetricas] = useState<any[]>([]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const idRotaFiltro = searchParams.get("idRota") || "";
 
-  const [editandoId, setEditandoId] =
-    useState<string | null>(null);
+  const [motoristas, setMotoristas] = useState<Motorista[]>([]);
+  const [metricas, setMetricas] = useState<Metrica[]>([]);
 
-  const [motoristaId, setMotoristaId] =
-    useState("");
-  const [motoristaNome, setMotoristaNome] =
-    useState("");
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+
+  const [motoristaId, setMotoristaId] = useState("");
+  const [motoristaNome, setMotoristaNome] = useState("");
   const [data, setData] = useState("");
-  const [codigoGaiola, setCodigoGaiola] =
-    useState("");
+  const [codigoGaiola, setCodigoGaiola] = useState("");
   const [idRota, setIdRota] = useState("");
   const [total, setTotal] = useState("");
-  const [insucesso, setInsucesso] =
-    useState("");
+  const [insucesso, setInsucesso] = useState("");
   const [motivo, setMotivo] = useState("");
 
-  const ds = calcularDS(
-    Number(total),
-    Number(insucesso)
-  );
+  const ds = calcularDS(Number(total), Number(insucesso));
 
   async function carregarDados() {
-    const motoristasData =
-      await listarMotoristas();
+    const [motoristasData, metricasData] = await Promise.all([
+      listarMotoristas(),
+      listarMetricas(),
+    ]);
 
-    const metricasData =
-      await listarMetricas();
-
-    setMotoristas(motoristasData);
-    setMetricas(metricasData as any[]);
+    setMotoristas(motoristasData as Motorista[]);
+    setMetricas(metricasData as Metrica[]);
   }
 
   function limparFormulario() {
@@ -81,17 +95,8 @@ export default function MetricasPage() {
   }
 
   async function handleSalvar() {
-    if (
-      !motoristaId ||
-      !data ||
-      !idRota ||
-      !codigoGaiola ||
-      !total
-    ) {
-      alert(
-        "Preencha motorista, data, ID da rota, código da gaiola e total de pacotes"
-      );
-
+    if (!motoristaId || !data || !idRota || !codigoGaiola || !total) {
+      alert("Preencha motorista, data, ID da rota, código da gaiola e total de pacotes");
       return;
     }
 
@@ -102,19 +107,14 @@ export default function MetricasPage() {
       codigoGaiola,
       idRota,
       qtdPacotesTotal: Number(total),
-      qtdPacotesNaoEntregues:
-        Number(insucesso),
+      qtdPacotesNaoEntregues: Number(insucesso),
       motivoNaoEntrega: motivo,
       ds,
       updatedAt: new Date(),
     };
 
     if (editandoId) {
-      await editarMetrica(
-        editandoId,
-        payload
-      );
-
+      await editarMetrica(editandoId, payload);
       alert("Métrica atualizada");
     } else {
       await criarMetrica({
@@ -129,39 +129,16 @@ export default function MetricasPage() {
     carregarDados();
   }
 
-  function handleEditar(metrica: any) {
+  function handleEditar(metrica: Metrica) {
     setEditandoId(metrica.id);
-
     setMotoristaId(metrica.motoristaId);
-
-    setMotoristaNome(
-      metrica.motoristaNome
-    );
-
+    setMotoristaNome(metrica.motoristaNome);
     setData(metrica.data);
-
     setIdRota(metrica.idRota || "");
-
-    setCodigoGaiola(
-      metrica.codigoGaiola || ""
-    );
-
-    setTotal(
-      String(
-        metrica.qtdPacotesTotal || ""
-      )
-    );
-
-    setInsucesso(
-      String(
-        metrica.qtdPacotesNaoEntregues ||
-          ""
-      )
-    );
-
-    setMotivo(
-      metrica.motivoNaoEntrega || ""
-    );
+    setCodigoGaiola(metrica.codigoGaiola || "");
+    setTotal(String(metrica.qtdPacotesTotal || ""));
+    setInsucesso(String(metrica.qtdPacotesNaoEntregues || ""));
+    setMotivo(metrica.motivoNaoEntrega || "");
 
     window.scrollTo({
       top: 0,
@@ -170,32 +147,43 @@ export default function MetricasPage() {
   }
 
   async function handleExcluir(id: string) {
-    const confirmar = confirm(
-      "Deseja realmente excluir esta métrica?"
-    );
-
+    const confirmar = confirm("Deseja realmente excluir esta métrica?");
     if (!confirmar) return;
 
     await excluirMetrica(id);
 
     alert("Métrica excluída");
-
     carregarDados();
   }
 
   useEffect(() => {
-    carregarDados();
+    let ativo = true;
+
+    Promise.all([listarMotoristas(), listarMetricas()]).then(
+      ([motoristasData, metricasData]) => {
+        if (!ativo) return;
+
+        setMotoristas(motoristasData as Motorista[]);
+        setMetricas(metricasData as Metrica[]);
+      }
+    );
+
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   const metricasDoDia = metricas
-    .filter((item) =>
-      data ? item.data === data : true
-    )
-    .sort((a, b) =>
-      String(b.data).localeCompare(
-        String(a.data)
-      )
-    );
+    .filter((item) => {
+      if (idRotaFiltro) {
+        return String(item.idRota || "")
+          .toLowerCase()
+          .includes(idRotaFiltro.toLowerCase());
+      }
+
+      return data ? item.data === data : true;
+    })
+    .sort((a, b) => String(b.data).localeCompare(String(a.data)));
 
   return (
     <PageShell
@@ -206,22 +194,16 @@ export default function MetricasPage() {
         <PremiumCard className="xl:col-span-2">
           <div className="flex items-center gap-3 mb-6">
             <div className="h-12 w-12 rounded-2xl bg-yellow-400/15 border border-yellow-400/20 flex items-center justify-center">
-              <Activity
-                size={22}
-                className="text-yellow-400"
-              />
+              <Activity size={22} className="text-yellow-400" />
             </div>
 
             <div>
               <h2 className="text-white text-2xl font-black">
-                {editandoId
-                  ? "Editar Métrica"
-                  : "Nova Métrica"}
+                {editandoId ? "Editar Métrica" : "Nova Métrica"}
               </h2>
 
               <p className="text-zinc-500 text-sm">
-                Cadastro operacional por
-                rota.
+                Cadastro operacional por rota.
               </p>
             </div>
           </div>
@@ -230,40 +212,22 @@ export default function MetricasPage() {
             <select
               value={motoristaId}
               onChange={(e) => {
-                const motorista =
-                  motoristas.find(
-                    (m) =>
-                      m.id ===
-                      e.target.value
-                  );
-
-                setMotoristaId(
-                  e.target.value
+                const motorista = motoristas.find(
+                  (m) => m.id === e.target.value
                 );
 
-                setMotoristaNome(
-                  motorista?.nomeCompleto ||
-                    ""
-                );
+                setMotoristaId(e.target.value);
+                setMotoristaNome(motorista?.nomeCompleto || "");
               }}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white"
             >
-              <option value="">
-                Selecione o motorista
-              </option>
+              <option value="">Selecione o motorista</option>
 
-              {motoristas.map(
-                (motorista) => (
-                  <option
-                    key={motorista.id}
-                    value={motorista.id}
-                  >
-                    {
-                      motorista.nomeCompleto
-                    }
-                  </option>
-                )
-              )}
+              {motoristas.map((motorista) => (
+                <option key={motorista.id} value={motorista.id}>
+                  {motorista.nomeCompleto}
+                </option>
+              ))}
             </select>
 
             <div className="relative">
@@ -275,9 +239,7 @@ export default function MetricasPage() {
               <input
                 type="date"
                 value={data}
-                onChange={(e) =>
-                  setData(e.target.value)
-                }
+                onChange={(e) => setData(e.target.value)}
                 className="w-full pl-12 p-4 rounded-2xl bg-black border border-zinc-800 text-white"
               />
             </div>
@@ -285,40 +247,28 @@ export default function MetricasPage() {
             <input
               placeholder="ID da Rota"
               value={idRota}
-              onChange={(e) =>
-                setIdRota(e.target.value)
-              }
+              onChange={(e) => setIdRota(e.target.value)}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
             />
 
             <input
               placeholder="Código da Gaiola"
               value={codigoGaiola}
-              onChange={(e) =>
-                setCodigoGaiola(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setCodigoGaiola(e.target.value)}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
             />
 
             <input
               placeholder="Qtd pacotes total"
               value={total}
-              onChange={(e) =>
-                setTotal(e.target.value)
-              }
+              onChange={(e) => setTotal(e.target.value)}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
             />
 
             <input
               placeholder="Qtd não entregues"
               value={insucesso}
-              onChange={(e) =>
-                setInsucesso(
-                  e.target.value
-                )
-              }
+              onChange={(e) => setInsucesso(e.target.value)}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
             />
           </div>
@@ -326,9 +276,7 @@ export default function MetricasPage() {
           <textarea
             placeholder="Motivo interno da não entrega"
             value={motivo}
-            onChange={(e) =>
-              setMotivo(e.target.value)
-            }
+            onChange={(e) => setMotivo(e.target.value)}
             className="w-full mt-4 p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
           />
 
@@ -337,11 +285,7 @@ export default function MetricasPage() {
               DS da rota
             </p>
 
-            <p
-              className={`text-6xl font-black mt-3 ${corDS(
-                ds
-              )}`}
-            >
+            <p className={`text-6xl font-black mt-3 ${corDS(ds)}`}>
               {ds}%
             </p>
           </div>
@@ -352,10 +296,7 @@ export default function MetricasPage() {
               className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black px-6 py-4 rounded-2xl transition"
             >
               <Save size={18} />
-
-              {editandoId
-                ? "Salvar Alterações"
-                : "Salvar Métrica"}
+              {editandoId ? "Salvar Alterações" : "Salvar Métrica"}
             </button>
 
             {editandoId && (
@@ -371,10 +312,7 @@ export default function MetricasPage() {
 
         <PremiumCard>
           <div className="flex items-center gap-3 mb-5">
-            <Truck
-              size={22}
-              className="text-yellow-400"
-            />
+            <Truck size={22} className="text-yellow-400" />
 
             <h2 className="text-white text-2xl font-black">
               Resumo
@@ -384,7 +322,7 @@ export default function MetricasPage() {
           <div className="space-y-4">
             <div className="rounded-2xl bg-black border border-zinc-800 p-5">
               <p className="text-zinc-500 text-sm">
-                Métricas do dia
+                Métricas listadas
               </p>
 
               <p className="text-white text-4xl font-black mt-2">
@@ -397,11 +335,7 @@ export default function MetricasPage() {
                 DS Atual
               </p>
 
-              <p
-                className={`text-4xl font-black mt-2 ${corDS(
-                  ds
-                )}`}
-              >
+              <p className={`text-4xl font-black mt-2 ${corDS(ds)}`}>
                 {ds}%
               </p>
             </div>
@@ -417,16 +351,31 @@ export default function MetricasPage() {
             </h2>
 
             <p className="text-zinc-500 text-sm mt-1">
-              Cada rota aparece como uma
-              métrica individual.
+              Cada rota aparece como uma métrica individual.
             </p>
           </div>
 
-          <Route
-            className="text-yellow-400"
-            size={28}
-          />
+          <Route className="text-yellow-400" size={28} />
         </div>
+
+        {idRotaFiltro && (
+          <div className="mb-5 rounded-3xl bg-yellow-400/10 border border-yellow-400/40 p-5">
+            <p className="text-yellow-400 font-black text-lg">
+              Resultado da busca:
+            </p>
+
+            <p className="text-white mt-1">
+              ID da rota: {idRotaFiltro}
+            </p>
+
+            <button
+              onClick={() => router.push("/metricas")}
+              className="mt-4 bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-3 rounded-2xl font-black transition"
+            >
+              Limpar busca
+            </button>
+          </div>
+        )}
 
         <div className="space-y-4">
           {metricasDoDia.map((metrica) => (
@@ -448,9 +397,7 @@ export default function MetricasPage() {
                     ID Rota:{" "}
                     {metrica.idRota ? (
                       <a
-                        href={gerarLinkMercadoLivre(
-                          metrica.idRota
-                        )}
+                        href={gerarLinkMercadoLivre(metrica.idRota)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-yellow-400 underline font-bold"
@@ -460,39 +407,23 @@ export default function MetricasPage() {
                     ) : (
                       "-"
                     )}{" "}
-                    | Gaiola:{" "}
-                    {metrica.codigoGaiola ||
-                      "-"}
+                    | Gaiola: {metrica.codigoGaiola || "-"}
                   </p>
 
                   <p className="text-zinc-500 text-sm mt-1">
-                    Pacotes:{" "}
-                    {
-                      metrica.qtdPacotesTotal
-                    }{" "}
-                    | Insucessos:{" "}
-                    {
-                      metrica.qtdPacotesNaoEntregues
-                    }
+                    Pacotes: {metrica.qtdPacotesTotal} | Insucessos:{" "}
+                    {metrica.qtdPacotesNaoEntregues}
                   </p>
                 </div>
 
                 <div className="flex flex-col items-start xl:items-end gap-4">
-                  <div
-                    className={`text-5xl font-black ${corDS(
-                      metrica.ds
-                    )}`}
-                  >
+                  <div className={`text-5xl font-black ${corDS(metrica.ds)}`}>
                     {metrica.ds}%
                   </div>
 
                   <div className="flex gap-2">
                     <button
-                      onClick={() =>
-                        handleEditar(
-                          metrica
-                        )
-                      }
+                      onClick={() => handleEditar(metrica)}
                       className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black px-4 py-3 rounded-2xl transition"
                     >
                       <Pencil size={16} />
@@ -500,11 +431,7 @@ export default function MetricasPage() {
                     </button>
 
                     <button
-                      onClick={() =>
-                        handleExcluir(
-                          metrica.id
-                        )
-                      }
+                      onClick={() => handleExcluir(metrica.id)}
                       className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-black px-4 py-3 rounded-2xl transition"
                     >
                       <Trash2 size={16} />
@@ -519,8 +446,7 @@ export default function MetricasPage() {
           {metricasDoDia.length === 0 && (
             <div className="rounded-3xl bg-black border border-zinc-800 p-10 text-center">
               <p className="text-zinc-500">
-                Nenhuma métrica cadastrada
-                para esta data.
+                Nenhuma métrica encontrada.
               </p>
             </div>
           )}

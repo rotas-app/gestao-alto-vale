@@ -1,7 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { signOut } from "firebase/auth";
-import { LogOut, Bell, Search } from "lucide-react";
+import {
+  LogOut,
+  Bell,
+  Search,
+} from "lucide-react";
 
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,9 +14,29 @@ import { useAuth } from "@/hooks/useAuth";
 export default function Header() {
   const { user } = useAuth();
 
+  const [idBusca, setIdBusca] =
+    useState("");
+
   async function handleLogout() {
     await signOut(auth);
+
     window.location.href = "/login";
+  }
+
+  function buscarRota() {
+    const id = idBusca.trim();
+
+    if (!id) {
+      alert("Digite o ID da rota");
+      return;
+    }
+
+    window.location.href =
+      `/metricas?idRota=${encodeURIComponent(
+        id
+      )}`;
+
+    setIdBusca("");
   }
 
   return (
@@ -27,17 +52,36 @@ export default function Header() {
           </h1>
         </div>
 
-        <div className="hidden lg:flex items-center bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2 w-96">
-          <Search size={18} className="text-zinc-500 mr-2" />
+        <div className="hidden lg:flex items-center bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2 w-[420px] focus-within:border-yellow-400 transition">
+          <Search
+            size={18}
+            className="text-zinc-500 mr-2"
+          />
 
           <input
-            placeholder="Pesquisar no sistema..."
+            value={idBusca}
+            onChange={(e) =>
+              setIdBusca(e.target.value)
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                buscarRota();
+              }
+            }}
+            placeholder="Buscar ID da rota..."
             className="bg-transparent outline-none text-white placeholder:text-zinc-500 w-full text-sm"
           />
+
+          <button
+            onClick={buscarRota}
+            className="ml-3 bg-yellow-400 hover:bg-yellow-300 text-black px-4 py-2 rounded-xl font-black text-xs transition"
+          >
+            Buscar
+          </button>
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="hidden md:flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-yellow-400">
+          <button className="hidden md:flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-yellow-400 transition">
             <Bell size={18} />
           </button>
 
