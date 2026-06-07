@@ -27,6 +27,7 @@ export default function MetricasPage() {
   const [motoristaNome, setMotoristaNome] = useState("");
   const [data, setData] = useState("");
   const [codigoGaiola, setCodigoGaiola] = useState("");
+  const [idRota, setIdRota] = useState("");
   const [total, setTotal] = useState("");
   const [insucesso, setInsucesso] = useState("");
   const [motivo, setMotivo] = useState("");
@@ -50,19 +51,21 @@ export default function MetricasPage() {
     setTotal("");
     setInsucesso("");
     setMotivo("");
+    setIdRota("");
   }
 
   async function handleSalvar() {
-    if (!motoristaId || !data || !codigoGaiola || !total) {
-      alert("Preencha motorista, data, código da gaiola/rota e total de pacotes");
-      return;
-    }
+    if (!motoristaId || !data || !idRota || !codigoGaiola || !total) {
+  alert("Preencha motorista, data, ID da rota, código da gaiola e total de pacotes");
+  return;
+}
 
     const payload = {
       motoristaId,
       motoristaNome,
       data,
       codigoGaiola,
+      idRota,
       qtdPacotesTotal: Number(total),
       qtdPacotesNaoEntregues: Number(insucesso),
       motivoNaoEntrega: motivo,
@@ -90,6 +93,7 @@ export default function MetricasPage() {
     setMotoristaId(metrica.motoristaId);
     setMotoristaNome(metrica.motoristaNome);
     setData(metrica.data);
+    setIdRota(metrica.idRota || "");
     setCodigoGaiola(metrica.codigoGaiola || "");
     setTotal(String(metrica.qtdPacotesTotal || ""));
     setInsucesso(String(metrica.qtdPacotesNaoEntregues || ""));
@@ -167,7 +171,12 @@ export default function MetricasPage() {
                 onChange={(e) => setData(e.target.value)}
                 className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700"
               />
-
+              <input
+                placeholder="ID da Rota"
+                value={idRota}
+                onChange={(e) => setIdRota(e.target.value)}
+                className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 placeholder:text-zinc-400"
+              />
               <input
                 placeholder="Código da Gaiola / Rota"
                 value={codigoGaiola}
@@ -244,7 +253,7 @@ export default function MetricasPage() {
                       </p>
 
                       <p className="text-zinc-400 text-sm">
-                        Data: {metrica.data} | Rota/Gaiola:{" "}
+                        Data: {metrica.data} | ID Rota: {metrica.idRota || "-"} | Gaiola:{" "}
                         {metrica.codigoGaiola || "-"}
                       </p>
 

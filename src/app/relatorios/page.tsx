@@ -52,6 +52,7 @@ export default function RelatoriosPage() {
       dados = metricas.map((item) => ({
         Data: item.data,
         Motorista: item.motoristaNome,
+        ID_Rota: item.idRota,
         Rota_Gaiola: item.codigoGaiola,
         Pacotes: item.qtdPacotesTotal,
         Insucessos: item.qtdPacotesNaoEntregues,
@@ -85,7 +86,7 @@ export default function RelatoriosPage() {
       .slice(0, 20)
       .map(
         (item) =>
-          `• ${item.motoristaNome} | Rota ${item.codigoGaiola || "-"} | DS ${
+          `• ${item.motoristaNome} | ID ${item.idRota || "-"} | Gaiola ${item.codigoGaiola || "-"} | DS ${
             item.ds
           }% | ${item.qtdPacotesTotal} pct | ${item.qtdPacotesNaoEntregues} ins.`
       )
@@ -208,7 +209,7 @@ function enviarWhatsapp() {
                     </p>
 
                     <p className="text-zinc-400 text-sm">
-                      {item.data} • Rota/Gaiola: {item.codigoGaiola || "-"}
+                      {item.data} • ID Rota: {item.idRota || "-"} • Gaiola: {item.codigoGaiola || "-"}
                     </p>
 
                     <p className="text-zinc-500 text-sm">
