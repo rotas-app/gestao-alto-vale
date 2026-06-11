@@ -9,7 +9,6 @@ import {
   FileText,
   LayoutDashboard,
   Menu,
-  PlugZap,
   Route,
   ShieldCheck,
   Users,
@@ -46,11 +45,6 @@ const menuItems = [
     href: "/usuarios",
     label: "Usuários",
     icon: ShieldCheck,
-  },
-  {
-    href: "/integracoes",
-    label: "Integrações",
-    icon: PlugZap,
   },
   {
     href: "/logs",

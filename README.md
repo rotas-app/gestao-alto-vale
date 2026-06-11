@@ -1,37 +1,5 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Mercado Livre
-
-Configure as variáveis abaixo no ambiente do servidor:
-
-```text
-MERCADOLIVRE_CLIENT_ID
-MERCADOLIVRE_CLIENT_SECRET
-MERCADOLIVRE_REDIRECT_URI
-MERCADOLIVRE_TOKEN_ENCRYPTION_KEY
-FIREBASE_ADMIN_PROJECT_ID
-FIREBASE_ADMIN_CLIENT_EMAIL
-FIREBASE_ADMIN_PRIVATE_KEY
-```
-
-Use como redirect URI:
-
-```text
-https://gestao-alto-vale.vercel.app/api/mercadolivre/callback
-```
-
-Use como URL de notificações:
-
-```text
-https://gestao-alto-vale.vercel.app/api/mercadolivre/webhook
-```
-
-Gere a chave de criptografia com:
-
-```powershell
-[Convert]::ToBase64String([byte[]](1..32 | ForEach-Object { Get-Random -Maximum 256 }))
-```
-
 ## Getting Started
 
 First, run the development server:
