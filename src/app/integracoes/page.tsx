@@ -25,6 +25,18 @@ interface StatusMercadoLivre {
   expiresAt?: string | null;
 }
 
+async function lerResposta(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      "A API da integração não iniciou corretamente. Confira o runtime Node.js e as variáveis do Vercel."
+    );
+  }
+
+  return response.json();
+}
+
 export default function IntegracoesPage() {
   const { firebaseUser } = useAuth();
   const [status, setStatus] = useState<StatusMercadoLivre>({
@@ -64,7 +76,7 @@ export default function IntegracoesPage() {
           Authorization: `Bearer ${idToken}`,
         },
       });
-      const data = await response.json();
+      const data = await lerResposta(response);
 
       if (!response.ok) {
         throw new Error(data.error || "Não foi possível concluir a operação.");
@@ -110,7 +122,7 @@ export default function IntegracoesPage() {
         })
       )
       .then(async (response) => {
-        const data = await response.json();
+        const data = await lerResposta(response);
 
         if (!response.ok) {
           throw new Error(data.error || "Erro ao carregar integração.");
