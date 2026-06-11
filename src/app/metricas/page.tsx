@@ -36,6 +36,15 @@ function corDS(ds: number) {
   return "text-red-400";
 }
 
+function obterDataHoje() {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+  const dia = String(hoje.getDate()).padStart(2, "0");
+
+  return `${ano}-${mes}-${dia}`;
+}
+
 export default function MetricasPage() {
   const { baseAtual } = useBase();
 
@@ -50,7 +59,7 @@ export default function MetricasPage() {
 
   const [motoristaId, setMotoristaId] = useState("");
   const [motoristaNome, setMotoristaNome] = useState("");
-  const [data, setData] = useState("");
+  const [data, setData] = useState(obterDataHoje);
   const [codigoGaiola, setCodigoGaiola] = useState("");
   const [idRota, setIdRota] = useState("");
   const [total, setTotal] = useState("");
@@ -75,7 +84,7 @@ export default function MetricasPage() {
     setEditandoId(null);
     setMotoristaId("");
     setMotoristaNome("");
-    setData("");
+    setData(obterDataHoje());
     setCodigoGaiola("");
     setIdRota("");
     setTotal("");

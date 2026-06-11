@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Download,
   FileText,
@@ -20,11 +21,11 @@ import type { Metrica } from "@/types/metricas";
 import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
 import { listarMetricas } from "@/services/metricaService";
 import { gerarRankingPorPeriodo } from "@/services/rankingService";
+import { addFooter, addHeader } from "@/utils/pdfHelpers";
 
 const NUMERO_WHATSAPP = "5547991232502";
 
 type TipoRelatorio = "geral" | "ranking";
-type LinhaExcel = Record<string, string | number>;
 
 export default function RelatoriosPage() {
   const { baseAtual } = useBase();
@@ -69,22 +70,60 @@ export default function RelatoriosPage() {
         )
       : 0;
 
-  async function exportarExcel() {
-    let dados: LinhaExcel[] = [];
+  async function exportarPdf() {
+    const pdf = new jsPDF();
 
     if (tipo === "geral") {
-      dados = metricas.map((item) => ({
-        Data: item.data,
-        Motorista: item.motoristaNome,
-        ID_Rota: item.idRota || "",
-        Link_Mercado_Livre: item.idRota
-          ? gerarLinkMercadoLivre(item.idRota)
-          : "",
-        Rota_Gaiola: item.codigoGaiola || "",
-        Pacotes: item.qtdPacotesTotal,
-        Insucessos: item.qtdPacotesNaoEntregues,
-        DS: `${item.ds}%`,
-      }));
+      if (metricas.length === 0) {
+        alert("Nenhuma métrica disponível para gerar o relatório.");
+        return;
+      }
+
+      addHeader(pdf);
+
+      pdf.setFontSize(13);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("RELATÓRIO GERAL DE ROTAS", 14, 48);
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(`Rotas: ${metricas.length}`, 14, 58);
+      pdf.text(`Total de pacotes: ${totalPacotes}`, 14, 65);
+      pdf.text(`Insucessos: ${totalInsucessos}`, 80, 65);
+      pdf.text(`DS média: ${dsMedia}%`, 145, 65);
+
+      autoTable(pdf, {
+        startY: 75,
+        head: [
+          ["Data", "Motorista", "ID Rota", "Gaiola", "Pacotes", "Ins.", "DS"],
+        ],
+        body: metricas.map((item) => [
+          item.data,
+          item.motoristaNome,
+          item.idRota || "-",
+          item.codigoGaiola || "-",
+          item.qtdPacotesTotal,
+          item.qtdPacotesNaoEntregues,
+          `${item.ds}%`,
+        ]),
+        headStyles: {
+          fillColor: [255, 214, 0],
+          textColor: [0, 0, 0],
+          fontStyle: "bold",
+        },
+        alternateRowStyles: { fillColor: [249, 249, 249] },
+        bodyStyles: { fontSize: 8 },
+        styles: { cellPadding: 2, overflow: "linebreak" },
+        columnStyles: {
+          0: { cellWidth: 20 },
+          1: { cellWidth: 42 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 24 },
+          4: { cellWidth: 20 },
+          5: { cellWidth: 16 },
+          6: { cellWidth: 15 },
+        },
+      });
     }
 
     if (tipo === "ranking") {
@@ -95,22 +134,53 @@ export default function RelatoriosPage() {
 
       const ranking = await gerarRankingPorPeriodo("mes", baseAtual);
 
-      dados = ranking.map((item, index) => ({
-        Posicao: index + 1,
-        Motorista: item.motoristaNome,
-        DS: `${item.dsMedia}%`,
-        Pacotes: item.totalPacotes,
-        Insucessos: item.totalInsucessos,
-        Registros: item.registros,
-      }));
+      if (ranking.length === 0) {
+        alert("Nenhum dado disponível para o ranking mensal.");
+        return;
+      }
+
+      addHeader(pdf);
+
+      pdf.setFontSize(13);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("RANKING MENSAL DE MOTORISTAS", 14, 48);
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(
+        `Período: ${new Date().toLocaleDateString("pt-BR", {
+          month: "long",
+          year: "numeric",
+        })}`,
+        14,
+        58
+      );
+
+      autoTable(pdf, {
+        startY: 68,
+        head: [
+          ["Posição", "Motorista", "DS médio", "Pacotes", "Insucessos", "Rotas"],
+        ],
+        body: ranking.map((item, index) => [
+          `${index + 1}º`,
+          item.motoristaNome,
+          `${item.dsMedia}%`,
+          item.totalPacotes,
+          item.totalInsucessos,
+          item.registros,
+        ]),
+        headStyles: {
+          fillColor: [255, 214, 0],
+          textColor: [0, 0, 0],
+          fontStyle: "bold",
+        },
+        alternateRowStyles: { fillColor: [249, 249, 249] },
+        bodyStyles: { fontSize: 9 },
+      });
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(dados);
-    const workbook = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Relatorio");
-
-    XLSX.writeFile(workbook, `relatorio-${tipo}.xlsx`);
+    addFooter(pdf);
+    pdf.save(`relatorio-${tipo}.pdf`);
   }
 
   function gerarMensagemWhatsapp() {
@@ -193,11 +263,11 @@ ${linhas}`;
 
           <div className="flex flex-col md:flex-row gap-3 mt-5">
             <button
-              onClick={exportarExcel}
+              onClick={exportarPdf}
               className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-black px-6 py-4 rounded-2xl transition"
             >
               <Download size={18} />
-              Exportar Excel
+              Gerar PDF
             </button>
 
             <button
