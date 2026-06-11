@@ -4,9 +4,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  query,
   updateDoc,
-  where,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -34,25 +32,22 @@ export async function criarMotorista(
 }
 
 export async function listarMotoristas(baseId?: string) {
-  let q;
+  const snapshot = await getDocs(collection(db, COLLECTION));
 
-  if (baseId) {
-    q = query(
-      collection(db, COLLECTION),
-      where("baseId", "==", baseId)
-    );
-  } else {
-    q = query(collection(db, COLLECTION));
-  }
-
-  const snapshot = await getDocs(q);
-
-  return snapshot.docs.map(
+  const motoristas = snapshot.docs.map(
     (documento) =>
       ({
         id: documento.id,
         ...documento.data(),
       }) as Motorista
+  );
+
+  if (!baseId) {
+    return motoristas;
+  }
+
+  return motoristas.filter(
+    (motorista) => !motorista.baseId || motorista.baseId === baseId
   );
 }
 

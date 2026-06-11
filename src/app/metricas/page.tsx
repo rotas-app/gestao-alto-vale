@@ -253,7 +253,7 @@ export default function MetricasPage() {
 
             <div className="relative">
               <Calendar
-                className="absolute left-4 top-4 text-zinc-500"
+                className="pointer-events-none absolute left-4 top-4 text-zinc-500"
                 size={18}
               />
 
@@ -261,6 +261,7 @@ export default function MetricasPage() {
                 type="date"
                 value={data}
                 onChange={(e) => setData(e.target.value)}
+                onClick={(e) => e.currentTarget.showPicker()}
                 className="w-full pl-12 p-4 rounded-2xl bg-black border border-zinc-800 text-white"
               />
             </div>
