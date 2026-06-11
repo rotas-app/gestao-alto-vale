@@ -4,7 +4,9 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  query,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
@@ -29,22 +31,17 @@ export async function criarMetrica(data: MetricaInput) {
 }
 
 export async function listarMetricas(baseId?: string) {
-  const snapshot = await getDocs(collection(db, COLLECTION));
+  const consulta = baseId
+    ? query(collection(db, COLLECTION), where("baseId", "==", baseId))
+    : query(collection(db, COLLECTION));
+  const snapshot = await getDocs(consulta);
 
-  const metricas = snapshot.docs.map(
+  return snapshot.docs.map(
     (documento) =>
       ({
         id: documento.id,
         ...documento.data(),
       }) as Metrica
-  );
-
-  if (!baseId) {
-    return metricas;
-  }
-
-  return metricas.filter(
-    (metrica) => !metrica.baseId || metrica.baseId === baseId
   );
 }
 

@@ -4,14 +4,10 @@ import {
 } from "firebase/auth";
 
 import {
-  addDoc,
-  collection,
   doc,
-  getDocs,
-  query,
+  getDoc,
   setDoc,
   updateDoc,
-  where,
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
@@ -33,18 +29,17 @@ export async function criarConviteGestor(
 ) {
   const token = crypto.randomUUID();
 
-  const conviteRef = await addDoc(
-    collection(db, "convites"),
-    {
-      nome,
-      email,
-      baseId,
-      cargo: "gestor",
-      token,
-      status: "pendente",
-      createdAt: new Date(),
-    }
-  );
+  const conviteRef = doc(db, "convites", token);
+
+  await setDoc(conviteRef, {
+    nome,
+    email,
+    baseId,
+    cargo: "gestor",
+    token,
+    status: "pendente",
+    createdAt: new Date(),
+  });
 
   const link = `${window.location.origin}/convite/${token}`;
 
@@ -57,22 +52,15 @@ export async function criarConviteGestor(
 export async function buscarConvitePorToken(
   token: string
 ) {
-  const q = query(
-    collection(db, "convites"),
-    where("token", "==", token)
-  );
+  const snapshot = await getDoc(doc(db, "convites", token));
 
-  const snapshot = await getDocs(q);
-
-  if (snapshot.empty) {
+  if (!snapshot.exists()) {
     return null;
   }
 
-  const documento = snapshot.docs[0];
-
   return {
-    id: documento.id,
-    ...documento.data(),
+    id: snapshot.id,
+    ...snapshot.data(),
   } as Convite;
 }
 
@@ -111,6 +99,7 @@ export async function aceitarConvite(
       baseId: convite.baseId,
       cargo: "gestor",
       status: "ativo",
+      conviteToken: token,
       createdAt: new Date(),
     }
   );

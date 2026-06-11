@@ -1,0 +1,135 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/usuarios/$(request.auth.uid);
+    }
+
+    function userDoc() {
+      return get(userPath());
+    }
+
+    function isActive() {
+      return isAuthenticated()
+        && exists(userPath())
+        && userDoc().data.status == "ativo";
+    }
+
+    function isAdmin() {
+      return isActive() && userDoc().data.cargo == "admin";
+    }
+
+    function isGestor() {
+      return isActive()
+        && (
+          userDoc().data.cargo == "gestor"
+          || userDoc().data.cargo == "admin"
+        );
+    }
+
+    function userBase() {
+      return userDoc().data.baseId;
+    }
+
+    function sameBase(baseId) {
+      return isAdmin()
+        || (
+          isGestor()
+          && userDoc().data.baseId is string
+          && baseId == userBase()
+        );
+    }
+
+    function validInviteForNewUser() {
+      let token = request.resource.data.conviteToken;
+      let invitePath =
+        /databases/$(database)/documents/convites/$(token);
+
+      return token is string
+        && exists(invitePath)
+        && get(invitePath).data.status == "pendente"
+        && get(invitePath).data.email == request.auth.token.email
+        && get(invitePath).data.baseId == request.resource.data.baseId;
+    }
+
+    match /usuarios/{userId} {
+      allow get: if isActive()
+        && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.cargo == "gestor"
+        && request.resource.data.status == "ativo"
+        && request.resource.data.baseId is string
+        && validInviteForNewUser();
+
+      allow update, delete: if isAdmin();
+    }
+
+    match /bases/{baseId} {
+      allow read: if isActive();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /motoristas/{docId} {
+      allow read: if isActive() && sameBase(resource.data.baseId);
+      allow create: if isGestor()
+        && sameBase(request.resource.data.baseId);
+      allow update: if isGestor()
+        && sameBase(resource.data.baseId)
+        && sameBase(request.resource.data.baseId);
+      allow delete: if isGestor() && sameBase(resource.data.baseId);
+    }
+
+    match /metricas/{docId} {
+      allow read: if isActive() && sameBase(resource.data.baseId);
+      allow create: if isGestor()
+        && sameBase(request.resource.data.baseId);
+      allow update: if isGestor()
+        && sameBase(resource.data.baseId)
+        && sameBase(request.resource.data.baseId);
+      allow delete: if isGestor() && sameBase(resource.data.baseId);
+    }
+
+    match /convites/{token} {
+      allow get: if isAdmin()
+        || (resource.data.status == "pendente" && resource.data.token == token);
+      allow list: if false;
+
+      allow create: if isAdmin()
+        && request.resource.data.token == token
+        && request.resource.data.status == "pendente"
+        && request.resource.data.cargo == "gestor"
+        && request.resource.data.baseId is string;
+
+      allow update: if isAdmin()
+        || (
+          isAuthenticated()
+          && resource.data.status == "pendente"
+          && request.auth.token.email == resource.data.email
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(["status", "uid", "aceitoEm"])
+          && request.resource.data.status == "aceito"
+          && request.resource.data.uid == request.auth.uid
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    match /logs/{docId} {
+      allow read: if isAdmin();
+      allow create: if isGestor()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.usuario == request.auth.token.email;
+      allow update, delete: if false;
+    }
+  }
+}
