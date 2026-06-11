@@ -2,6 +2,8 @@ import { FieldValue } from "firebase-admin/firestore";
 
 import { getAdminDb } from "@/lib/firebaseAdmin";
 
+export const runtime = "nodejs";
+
 interface MercadoLivreNotification {
   resource?: string;
   user_id?: number;

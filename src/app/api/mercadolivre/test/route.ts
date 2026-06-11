@@ -7,6 +7,8 @@ import {
   respostaErroAutorizacao,
 } from "@/lib/serverAuth";
 
+export const runtime = "nodejs";
+
 export async function POST(request: Request) {
   try {
     await exigirAdmin(request);

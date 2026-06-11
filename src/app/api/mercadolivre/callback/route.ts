@@ -1,6 +1,8 @@
 import { getAdminDb } from "@/lib/firebaseAdmin";
 import { trocarCodigoPorToken } from "@/lib/mercadoLivre";
 
+export const runtime = "nodejs";
+
 function redirecionar(request: Request, status: string) {
   return Response.redirect(
     new URL(`/integracoes?mercadolivre=${status}`, request.url)
