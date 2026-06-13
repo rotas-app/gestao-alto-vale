@@ -99,6 +99,16 @@ service cloud.firestore {
       allow delete: if isGestor() && sameBase(resource.data.baseId);
     }
 
+    match /relatoriosDiarios/{docId} {
+      allow read: if isActive() && sameBase(resource.data.baseId);
+      allow create: if isGestor()
+        && sameBase(request.resource.data.baseId);
+      allow update: if isGestor()
+        && sameBase(resource.data.baseId)
+        && sameBase(request.resource.data.baseId);
+      allow delete: if isGestor() && sameBase(resource.data.baseId);
+    }
+
     match /convites/{token} {
       allow get: if isAdmin()
         || (resource.data.status == "pendente" && resource.data.token == token);

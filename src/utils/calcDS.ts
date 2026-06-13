@@ -19,3 +19,20 @@ export function calcularDS(
 
   return Number(ds.toFixed(2))
 }
+
+/**
+ * Calcula o DS operacional durante a rota.
+ * DS = pacotes entregues / total de pacotes.
+ */
+export function calcularDSPorEntregas(
+  totalPacotes: number,
+  pacotesEntregues: number
+): number {
+  if (totalPacotes <= 0) {
+    return 0
+  }
+
+  const ds = (pacotesEntregues / totalPacotes) * 100
+
+  return Number(ds.toFixed(2))
+}

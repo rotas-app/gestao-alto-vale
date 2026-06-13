@@ -1,36 +1,146 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
+  AlertTriangle,
+  CheckCircle2,
+  Clipboard,
+  Clock3,
   Download,
   FileText,
-  MessageCircle,
+  Package,
   PackageCheck,
-  TrendingUp,
-  AlertTriangle,
   Route,
+  Save,
+  Star,
+  XCircle,
 } from "lucide-react";
 
 import PageShell from "@/components/layout/pageshell";
 import PremiumCard from "@/components/ui/premiumCard";
-
 import { useBase } from "@/contexts/BaseContext";
+import {
+  buscarRelatorioDiario,
+  salvarRelatorioDiario,
+} from "@/services/relatorioDiarioService";
+import {
+  editarMetrica,
+  listarMetricas,
+} from "@/services/metricaService";
 import type { Metrica } from "@/types/metricas";
-import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
-import { listarMetricas } from "@/services/metricaService";
-import { gerarRankingPorPeriodo } from "@/services/rankingService";
+import { calcularDSPorEntregas } from "@/utils/calcDS";
 import { addFooter, addHeader } from "@/utils/pdfHelpers";
 
-const NUMERO_WHATSAPP = "5547991232502";
+const LIMITE_ALERTA_DS = 95;
 
-type TipoRelatorio = "geral" | "ranking";
+function dataLocalAtual() {
+  const agora = new Date();
+  const offset = agora.getTimezoneOffset() * 60_000;
+  return new Date(agora.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function formatarData(data: string) {
+  if (!data) return "-";
+
+  return new Intl.DateTimeFormat("pt-BR").format(
+    new Date(`${data}T12:00:00`)
+  );
+}
+
+function numero(valor: number | undefined) {
+  return Number(valor || 0);
+}
+
+function entreguesDaRota(metrica: Metrica) {
+  if (typeof metrica.qtdPacotesEntregues === "number") {
+    return metrica.qtdPacotesEntregues;
+  }
+
+  return Math.max(
+    0,
+    numero(metrica.qtdPacotesTotal) -
+      numero(metrica.qtdPacotesNaoEntregues)
+  );
+}
+
+function dsDaRota(metrica: Metrica) {
+  return calcularDSPorEntregas(
+    numero(metrica.qtdPacotesTotal),
+    entreguesDaRota(metrica)
+  );
+}
+
+function statusDaRota(metrica: Metrica) {
+  const status = `${metrica.statusRota || ""} ${
+    metrica.substatusRota || ""
+  }`.toLocaleLowerCase("pt-BR");
+
+  if (
+    status.includes("out_of_area") ||
+    status.includes("fora da area") ||
+    status.includes("fora da área")
+  ) {
+    return "Fora da área";
+  }
+
+  if (
+    status.includes("close") ||
+    status.includes("complete") ||
+    status.includes("finish") ||
+    status.includes("conclu")
+  ) {
+    return "Concluída";
+  }
+
+  if (
+    status.includes("active") ||
+    status.includes("started") ||
+    status.includes("progress") ||
+    status.includes("andamento")
+  ) {
+    return "Em andamento";
+  }
+
+  return status.trim() ? metrica.statusRota || "Desconhecido" : "Desconhecido";
+}
+
+function nomeDaRota(metrica: Metrica) {
+  return metrica.codigoGaiola || metrica.idRota || "Rota sem identificação";
+}
+
+function linhaDaRota(metrica: Metrica) {
+  const entregues = entreguesDaRota(metrica);
+  const total = numero(metrica.qtdPacotesTotal);
+  const falhas = numero(
+    metrica.qtdPacotesFalhas ?? metrica.qtdPacotesNaoEntregues
+  );
+  const pendentes = numero(metrica.qtdPacotesPendentes);
+
+  return {
+    ...metrica,
+    total,
+    entregues,
+    falhas,
+    pendentes,
+    dsOperacional: dsDaRota(metrica),
+    statusOperacional: statusDaRota(metrica),
+  };
+}
 
 export default function RelatoriosPage() {
-  const { baseAtual } = useBase();
+  const { baseAtual, bases } = useBase();
   const [metricas, setMetricas] = useState<Metrica[]>([]);
-  const [tipo, setTipo] = useState<TipoRelatorio>("geral");
+  const [dataSelecionada, setDataSelecionada] = useState(dataLocalAtual);
+  const [dispatcher, setDispatcher] = useState("");
+  const [observacoesGerais, setObservacoesGerais] = useState("");
+  const [justificativas, setJustificativas] = useState<Record<string, string>>(
+    {}
+  );
+  const [salvandoCabecalho, setSalvandoCabecalho] = useState(false);
+  const [salvandoJustificativa, setSalvandoJustificativa] = useState("");
+  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     let ativo = true;
@@ -39,9 +149,9 @@ export default function RelatoriosPage() {
       ? listarMetricas(baseAtual)
       : Promise.resolve<Metrica[]>([]);
 
-    carregamento.then((data) => {
+    carregamento.then((dados) => {
       if (ativo) {
-        setMetricas(data);
+        setMetricas(dados);
       }
     });
 
@@ -50,359 +160,729 @@ export default function RelatoriosPage() {
     };
   }, [baseAtual]);
 
-  const totalPacotes = metricas.reduce(
-    (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
-    0
+  useEffect(() => {
+    let ativo = true;
+
+    if (!baseAtual || !dataSelecionada) {
+      return;
+    }
+
+    buscarRelatorioDiario(baseAtual, dataSelecionada).then((relatorio) => {
+      if (!ativo) return;
+
+      setDispatcher(relatorio?.dispatcher || "");
+      setObservacoesGerais(relatorio?.observacoesGerais || "");
+    });
+
+    return () => {
+      ativo = false;
+    };
+  }, [baseAtual, dataSelecionada]);
+
+  const rotas = useMemo(
+    () =>
+      metricas
+        .filter((metrica) => metrica.data === dataSelecionada)
+        .map(linhaDaRota),
+    [dataSelecionada, metricas]
   );
 
-  const totalInsucessos = metricas.reduce(
-    (acc, item) => acc + Number(item.qtdPacotesNaoEntregues || 0),
-    0
-  );
+  const resumo = useMemo(() => {
+    const total = rotas.reduce((soma, rota) => soma + rota.total, 0);
+    const entregues = rotas.reduce(
+      (soma, rota) => soma + rota.entregues,
+      0
+    );
+    const pendentes = rotas.reduce(
+      (soma, rota) => soma + rota.pendentes,
+      0
+    );
+    const falhas = rotas.reduce((soma, rota) => soma + rota.falhas, 0);
 
-  const dsMedia =
-    metricas.length > 0
-      ? Number(
-          (
-            metricas.reduce((acc, item) => acc + Number(item.ds || 0), 0) /
-            metricas.length
-          ).toFixed(2)
+    return {
+      total,
+      entregues,
+      pendentes,
+      falhas,
+      ds: calcularDSPorEntregas(total, entregues),
+      emAndamento: rotas.filter(
+        (rota) => rota.statusOperacional === "Em andamento"
+      ).length,
+      concluidas: rotas.filter(
+        (rota) => rota.statusOperacional === "Concluída"
+      ).length,
+      outrosStatus: rotas.filter(
+        (rota) =>
+          rota.statusOperacional !== "Em andamento" &&
+          rota.statusOperacional !== "Concluída"
+      ).length,
+    };
+  }, [rotas]);
+
+  const pioresDs = useMemo(
+    () =>
+      [...rotas]
+        .filter((rota) => rota.total > 0)
+        .sort(
+          (a, b) =>
+            a.dsOperacional - b.dsOperacional || b.total - a.total
         )
-      : 0;
+        .slice(0, 5),
+    [rotas]
+  );
 
-  async function exportarPdf() {
-    const pdf = new jsPDF();
+  const melhoresDs = useMemo(
+    () =>
+      [...rotas]
+        .filter((rota) => rota.total > 0)
+        .sort(
+          (a, b) =>
+            b.dsOperacional - a.dsOperacional ||
+            b.entregues - a.entregues
+        )
+        .slice(0, 5),
+    [rotas]
+  );
 
-    if (tipo === "geral") {
-      if (metricas.length === 0) {
-        alert("Nenhuma métrica disponível para gerar o relatório.");
-        return;
-      }
+  const rotasComFalha = useMemo(
+    () =>
+      [...rotas]
+        .filter((rota) => rota.falhas > 0)
+        .sort(
+          (a, b) =>
+            b.falhas - a.falhas || b.pendentes - a.pendentes
+        ),
+    [rotas]
+  );
 
-      addHeader(pdf);
+  const rotasComAlerta = useMemo(
+    () =>
+      [...rotas]
+        .filter(
+          (rota) =>
+            rota.falhas > 0 ||
+            rota.pendentes > 0 ||
+            rota.dsOperacional < LIMITE_ALERTA_DS
+        )
+        .sort(
+          (a, b) =>
+            a.dsOperacional - b.dsOperacional || b.falhas - a.falhas
+        ),
+    [rotas]
+  );
 
-      pdf.setFontSize(13);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("RELATÓRIO GERAL DE ROTAS", 14, 48);
+  const nomeBase =
+    bases.find((base) => base.id === baseAtual)?.nome || baseAtual || "-";
 
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(`Rotas: ${metricas.length}`, 14, 58);
-      pdf.text(`Total de pacotes: ${totalPacotes}`, 14, 65);
-      pdf.text(`Insucessos: ${totalInsucessos}`, 80, 65);
-      pdf.text(`DS média: ${dsMedia}%`, 145, 65);
-
-      autoTable(pdf, {
-        startY: 75,
-        head: [
-          ["Data", "Motorista", "ID Rota", "Gaiola", "Pacotes", "Ins.", "DS"],
-        ],
-        body: metricas.map((item) => [
-          item.data,
-          item.motoristaNome,
-          item.idRota || "-",
-          item.codigoGaiola || "-",
-          item.qtdPacotesTotal,
-          item.qtdPacotesNaoEntregues,
-          `${item.ds}%`,
-        ]),
-        headStyles: {
-          fillColor: [255, 214, 0],
-          textColor: [0, 0, 0],
-          fontStyle: "bold",
-        },
-        alternateRowStyles: { fillColor: [249, 249, 249] },
-        bodyStyles: { fontSize: 8 },
-        styles: { cellPadding: 2, overflow: "linebreak" },
-        columnStyles: {
-          0: { cellWidth: 20 },
-          1: { cellWidth: 42 },
-          2: { cellWidth: 25 },
-          3: { cellWidth: 24 },
-          4: { cellWidth: 20 },
-          5: { cellWidth: 16 },
-          6: { cellWidth: 15 },
-        },
-      });
+  async function salvarCabecalho() {
+    if (!baseAtual) {
+      alert("Selecione uma base antes de salvar.");
+      return;
     }
 
-    if (tipo === "ranking") {
-      if (!baseAtual) {
-        alert("Selecione uma base antes de exportar.");
-        return;
-      }
+    setSalvandoCabecalho(true);
 
-      const ranking = await gerarRankingPorPeriodo("mes", baseAtual);
+    try {
+      await salvarRelatorioDiario({
+        baseId: baseAtual,
+        data: dataSelecionada,
+        dispatcher: dispatcher.trim(),
+        observacoesGerais: observacoesGerais.trim(),
+      });
+      alert("Informações do relatório salvas.");
+    } finally {
+      setSalvandoCabecalho(false);
+    }
+  }
 
-      if (ranking.length === 0) {
-        alert("Nenhum dado disponível para o ranking mensal.");
-        return;
-      }
+  async function salvarJustificativa(metrica: Metrica) {
+    setSalvandoJustificativa(metrica.id);
 
-      addHeader(pdf);
+    try {
+      await editarMetrica(metrica.id, {
+        motivoNaoEntrega:
+          justificativas[metrica.id] ?? metrica.motivoNaoEntrega ?? "",
+        updatedAt: new Date(),
+      });
 
-      pdf.setFontSize(13);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("RANKING MENSAL DE MOTORISTAS", 14, 48);
-
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(
-        `Período: ${new Date().toLocaleDateString("pt-BR", {
-          month: "long",
-          year: "numeric",
-        })}`,
-        14,
-        58
+      setMetricas((atuais) =>
+        atuais.map((item) =>
+          item.id === metrica.id
+            ? {
+                ...item,
+                motivoNaoEntrega:
+                  justificativas[metrica.id] ??
+                  metrica.motivoNaoEntrega ??
+                  "",
+              }
+            : item
+        )
       );
-
-      autoTable(pdf, {
-        startY: 68,
-        head: [
-          ["Posição", "Motorista", "DS médio", "Pacotes", "Insucessos", "Rotas"],
-        ],
-        body: ranking.map((item, index) => [
-          `${index + 1}º`,
-          item.motoristaNome,
-          `${item.dsMedia}%`,
-          item.totalPacotes,
-          item.totalInsucessos,
-          item.registros,
-        ]),
-        headStyles: {
-          fillColor: [255, 214, 0],
-          textColor: [0, 0, 0],
-          fontStyle: "bold",
-        },
-        alternateRowStyles: { fillColor: [249, 249, 249] },
-        bodyStyles: { fontSize: 9 },
-      });
+    } finally {
+      setSalvandoJustificativa("");
     }
-
-    addFooter(pdf);
-    pdf.save(`relatorio-${tipo}.pdf`);
   }
 
   function gerarMensagemWhatsapp() {
-    const linhas = metricas
-      .slice(0, 20)
+    const piores = pioresDs
       .map(
-        (item) =>
-          `• ${item.motoristaNome} | ID ${item.idRota || "-"} | Gaiola ${
-            item.codigoGaiola || "-"
-          } | DS ${item.ds}% | ${item.qtdPacotesTotal} pct | ${
-            item.qtdPacotesNaoEntregues
-          } ins.${
-            item.idRota ? `\n  Link: ${gerarLinkMercadoLivre(item.idRota)}` : ""
+        (rota, index) =>
+          `${index + 1}. ${nomeDaRota(rota)} — ${rota.motoristaNome}\n` +
+          `DS: ${rota.dsOperacional}% | ${rota.entregues}/${rota.total}`
+      )
+      .join("\n");
+
+    const falhas = rotasComFalha
+      .map(
+        (rota, index) =>
+          `${index + 1}. ${nomeDaRota(rota)} — ${rota.motoristaNome}\n` +
+          `Falhas: ${rota.falhas} | Pendentes: ${rota.pendentes} | ` +
+          `Status: ${rota.statusOperacional}`
+      )
+      .join("\n");
+
+    const melhores = melhoresDs
+      .map(
+        (rota, index) =>
+          `${index + 1}. ${nomeDaRota(rota)} — ${rota.motoristaNome}\n` +
+          `DS: ${rota.dsOperacional}% | ${rota.entregues}/${rota.total}`
+      )
+      .join("\n");
+
+    const justificadas = rotasComAlerta
+      .filter(
+        (rota) =>
+          (justificativas[rota.id] ?? rota.motivoNaoEntrega ?? "").trim()
+            .length > 0
+      )
+      .map(
+        (rota) =>
+          `• ${nomeDaRota(rota)} — ${rota.motoristaNome}: ${
+            justificativas[rota.id] ?? rota.motivoNaoEntrega
           }`
       )
       .join("\n");
 
-    return `RELATÓRIO ALTO VALE
+    return `*RELATÓRIO FINAL DO DIA*
+${formatarData(dataSelecionada)} — ${nomeBase}
+Dispatcher: ${dispatcher || "-"}
 
-Resumo:
-Pacotes: ${totalPacotes}
-Insucessos: ${totalInsucessos}
-DS média: ${dsMedia}%
+*Resumo operacional*
+Rotas: ${rotas.length}
+Pacotes: ${resumo.total}
+Entregues: ${resumo.entregues}
+Pendentes: ${resumo.pendentes}
+Falhas: ${resumo.falhas}
+DS Geral: ${resumo.ds}%
+Em andamento: ${resumo.emAndamento}
+Concluídas: ${resumo.concluidas}
+Outros status: ${resumo.outrosStatus}
 
-Métricas por rota:
-${linhas}`;
+*Atenção — Piores DS%*
+${piores || "Nenhuma rota"}
+
+*Falhas de Entrega*
+${falhas || "Nenhuma falha registrada"}
+
+*Destaques — Melhores DS%*
+${melhores || "Nenhuma rota"}
+
+*Justificativas*
+${justificadas || "Nenhuma justificativa registrada"}
+
+*Observações gerais*
+${observacoesGerais || "Sem observações."}`;
   }
 
-  function enviarWhatsapp() {
-    if (!NUMERO_WHATSAPP) {
-      alert("Configure o número do WhatsApp.");
+  async function copiarWhatsapp() {
+    if (rotas.length === 0) {
+      alert("Nenhuma rota encontrada na data selecionada.");
       return;
     }
 
-    const mensagem = encodeURIComponent(gerarMensagemWhatsapp());
+    await navigator.clipboard.writeText(gerarMensagemWhatsapp());
+    setCopiado(true);
+    window.setTimeout(() => setCopiado(false), 2000);
+  }
 
-    window.open(
-      `https://wa.me/${NUMERO_WHATSAPP}?text=${mensagem}`,
-      "_blank"
+  function exportarPdf() {
+    if (rotas.length === 0) {
+      alert("Nenhuma rota encontrada na data selecionada.");
+      return;
+    }
+
+    const pdf = new jsPDF();
+    const documento = pdf as jsPDF & {
+      lastAutoTable?: { finalY: number };
+    };
+
+    addHeader(pdf);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.text("RELATÓRIO FINAL DO DIA", 14, 47);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.text(
+      `${formatarData(dataSelecionada)} | Base: ${nomeBase} | Dispatcher: ${
+        dispatcher || "-"
+      }`,
+      14,
+      55
     );
+
+    autoTable(pdf, {
+      startY: 62,
+      head: [["Rotas", "Pacotes", "Entregues", "Pendentes", "Falhas", "DS"]],
+      body: [
+        [
+          rotas.length,
+          resumo.total,
+          resumo.entregues,
+          resumo.pendentes,
+          resumo.falhas,
+          `${resumo.ds}%`,
+        ],
+      ],
+      headStyles: {
+        fillColor: [255, 214, 0],
+        textColor: [0, 0, 0],
+      },
+      styles: { halign: "center", fontSize: 9 },
+    });
+
+    let inicio = (documento.lastAutoTable?.finalY || 80) + 8;
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Atenção — Piores DS%", 14, inicio);
+    autoTable(pdf, {
+      startY: inicio + 3,
+      head: [["Rota", "Motorista", "DS", "Entregues", "Status"]],
+      body: pioresDs.map((rota) => [
+        nomeDaRota(rota),
+        rota.motoristaNome,
+        `${rota.dsOperacional}%`,
+        `${rota.entregues}/${rota.total}`,
+        rota.statusOperacional,
+      ]),
+      headStyles: { fillColor: [180, 40, 40] },
+      bodyStyles: { fontSize: 8 },
+    });
+
+    inicio = (documento.lastAutoTable?.finalY || inicio) + 8;
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Falhas de Entrega", 14, inicio);
+    autoTable(pdf, {
+      startY: inicio + 3,
+      head: [["Rota", "Motorista", "Falhas", "Pendentes", "Status"]],
+      body:
+        rotasComFalha.length > 0
+          ? rotasComFalha.map((rota) => [
+              nomeDaRota(rota),
+              rota.motoristaNome,
+              rota.falhas,
+              rota.pendentes,
+              rota.statusOperacional,
+            ])
+          : [["-", "Nenhuma falha registrada", 0, 0, "-"]],
+      headStyles: { fillColor: [180, 40, 40] },
+      bodyStyles: { fontSize: 8 },
+    });
+
+    inicio = (documento.lastAutoTable?.finalY || inicio) + 8;
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Destaques — Melhores DS%", 14, inicio);
+    autoTable(pdf, {
+      startY: inicio + 3,
+      head: [["Rota", "Motorista", "DS", "Entregues", "Status"]],
+      body: melhoresDs.map((rota) => [
+        nomeDaRota(rota),
+        rota.motoristaNome,
+        `${rota.dsOperacional}%`,
+        `${rota.entregues}/${rota.total}`,
+        rota.statusOperacional,
+      ]),
+      headStyles: { fillColor: [28, 120, 70] },
+      bodyStyles: { fontSize: 8 },
+    });
+
+    const justificadas = rotasComAlerta.filter(
+      (rota) =>
+        (justificativas[rota.id] ?? rota.motivoNaoEntrega ?? "").trim()
+          .length > 0
+    );
+
+    inicio = (documento.lastAutoTable?.finalY || inicio) + 8;
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Justificativas e observações", 14, inicio);
+    autoTable(pdf, {
+      startY: inicio + 3,
+      head: [["Rota", "Motorista", "Justificativa"]],
+      body: [
+        ...justificadas.map((rota) => [
+          nomeDaRota(rota),
+          rota.motoristaNome,
+          justificativas[rota.id] ?? rota.motivoNaoEntrega ?? "",
+        ]),
+        [
+          "Geral",
+          dispatcher || "Dispatcher",
+          observacoesGerais || "Sem observações gerais.",
+        ],
+      ],
+      headStyles: {
+        fillColor: [255, 214, 0],
+        textColor: [0, 0, 0],
+      },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: { 2: { cellWidth: 90 } },
+    });
+
+    addFooter(pdf);
+    pdf.save(`relatorio-final-${dataSelecionada}.pdf`);
   }
 
   return (
     <PageShell
-      title="Relatórios"
-      subtitle="Exportação operacional simples, limpa e comunicativa."
+      title="Relatório do Dia"
+      subtitle="Fechamento operacional compacto para gestão e cliente."
     >
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-6">
-        <PremiumCard className="xl:col-span-2">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="h-12 w-12 rounded-2xl bg-yellow-400/15 border border-yellow-400/20 flex items-center justify-center">
-              <FileText size={22} className="text-yellow-400" />
-            </div>
-
-            <div>
-              <h2 className="text-white text-2xl font-black">
-                Gerar relatório
-              </h2>
-
-              <p className="text-zinc-500 text-sm">
-                Escolha o tipo de relatório e envie ou exporte.
-              </p>
-            </div>
+      <PremiumCard className="mb-5">
+        <div className="flex flex-col xl:flex-row xl:items-end gap-4">
+          <div className="flex-1">
+            <label className="text-zinc-400 text-sm block mb-2">
+              Data da operação
+            </label>
+            <input
+              type="date"
+              value={dataSelecionada}
+              onChange={(event) => setDataSelecionada(event.target.value)}
+              onClick={(event) => event.currentTarget.showPicker?.()}
+              className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white outline-none focus:border-yellow-400"
+            />
           </div>
 
-          <label className="text-zinc-400 text-sm block mb-2">
-            Tipo de relatório
-          </label>
+          <div className="flex-1">
+            <label className="text-zinc-400 text-sm block mb-2">
+              Dispatcher
+            </label>
+            <input
+              value={dispatcher}
+              onChange={(event) => setDispatcher(event.target.value)}
+              placeholder="Nome do responsável pelo fechamento"
+              className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white outline-none focus:border-yellow-400"
+            />
+          </div>
 
-          <select
-            value={tipo}
-            onChange={(e) =>
-              setTipo(e.target.value as TipoRelatorio)
-            }
-            className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white outline-none focus:border-yellow-400 transition"
+          <button
+            onClick={salvarCabecalho}
+            disabled={salvandoCabecalho}
+            className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-white font-black px-5 py-4 rounded-2xl transition"
           >
-            <option value="geral">Relatório Geral</option>
-            <option value="ranking">Ranking Mensal</option>
-          </select>
+            <Save size={18} />
+            {salvandoCabecalho ? "Salvando..." : "Salvar informações"}
+          </button>
 
-          <div className="flex flex-col md:flex-row gap-3 mt-5">
-            <button
-              onClick={exportarPdf}
-              className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-black px-6 py-4 rounded-2xl transition"
-            >
-              <Download size={18} />
-              Gerar PDF
-            </button>
+          <button
+            onClick={copiarWhatsapp}
+            className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-black px-5 py-4 rounded-2xl transition"
+          >
+            <Clipboard size={18} />
+            {copiado ? "Relatório copiado" : "Copiar para WhatsApp"}
+          </button>
 
-            <button
-              onClick={enviarWhatsapp}
-              className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-black px-6 py-4 rounded-2xl transition"
-            >
-              <MessageCircle size={18} />
-              Enviar no WhatsApp
-            </button>
-          </div>
-        </PremiumCard>
+          <button
+            onClick={exportarPdf}
+            className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black px-5 py-4 rounded-2xl transition"
+          >
+            <Download size={18} />
+            Baixar PDF final
+          </button>
+        </div>
+      </PremiumCard>
 
-        <PremiumCard>
-          <div className="flex items-center gap-3 mb-5">
-            <Route size={22} className="text-yellow-400" />
-
-            <h2 className="text-white text-2xl font-black">
-              Rotas
-            </h2>
-          </div>
-
-          <p className="text-zinc-500 text-sm">
-            Total de métricas listadas
-          </p>
-
-          <p className="text-yellow-400 text-5xl font-black mt-3">
-            {metricas.length}
-          </p>
-        </PremiumCard>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-        <PremiumCard>
-          <PackageCheck className="text-yellow-400 mb-3" />
-
-          <p className="text-zinc-500 text-sm">
-            Total de pacotes
-          </p>
-
-          <p className="text-white text-4xl font-black mt-2">
-            {totalPacotes}
-          </p>
-        </PremiumCard>
-
-        <PremiumCard>
-          <AlertTriangle className="text-red-400 mb-3" />
-
-          <p className="text-zinc-500 text-sm">
-            Total de insucessos
-          </p>
-
-          <p className="text-red-400 text-4xl font-black mt-2">
-            {totalInsucessos}
-          </p>
-        </PremiumCard>
-
-        <PremiumCard>
-          <TrendingUp className="text-yellow-400 mb-3" />
-
-          <p className="text-zinc-500 text-sm">
-            DS média
-          </p>
-
-          <p className="text-yellow-400 text-4xl font-black mt-2">
-            {dsMedia}%
-          </p>
-        </PremiumCard>
-      </div>
-
-      <PremiumCard>
-        <div className="flex items-center justify-between mb-6">
+      <PremiumCard className="mb-5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-white text-3xl font-black">
-              Relatório simples por rota
+            <p className="text-yellow-400 text-xs font-black uppercase tracking-[0.22em]">
+              Relatório operacional
+            </p>
+            <h2 className="text-white text-3xl font-black mt-2">
+              {formatarData(dataSelecionada)} — {nomeBase}
             </h2>
-
             <p className="text-zinc-500 text-sm mt-1">
-              Visualização limpa sem motivo dos insucessos.
+              Dispatcher: {dispatcher || "não informado"}
             </p>
           </div>
+          <FileText className="text-yellow-400" size={32} />
+        </div>
 
-          <FileText className="text-yellow-400" size={28} />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+          <ResumoCard titulo="Rotas" valor={rotas.length} icone={<Route />} />
+          <ResumoCard titulo="Pacotes" valor={resumo.total} icone={<Package />} />
+          <ResumoCard
+            titulo="Entregues"
+            valor={resumo.entregues}
+            icone={<PackageCheck />}
+            cor="text-emerald-400"
+          />
+          <ResumoCard
+            titulo="Pendentes"
+            valor={resumo.pendentes}
+            icone={<Clock3 />}
+            cor="text-orange-400"
+          />
+          <ResumoCard
+            titulo="Falhas"
+            valor={resumo.falhas}
+            icone={<XCircle />}
+            cor="text-red-400"
+          />
+          <ResumoCard
+            titulo="DS Geral"
+            valor={`${resumo.ds}%`}
+            icone={<CheckCircle2 />}
+            cor="text-yellow-400"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+          <StatusCard titulo="Em andamento" valor={resumo.emAndamento} />
+          <StatusCard titulo="Concluídas" valor={resumo.concluidas} />
+          <StatusCard titulo="Outros status" valor={resumo.outrosStatus} />
+        </div>
+      </PremiumCard>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-5">
+        <ListaDesempenho
+          titulo="Atenção — Piores DS%"
+          icone={<AlertTriangle className="text-red-400" />}
+          rotas={pioresDs}
+          vazio="Nenhuma rota encontrada."
+        />
+        <ListaDesempenho
+          titulo="Destaques — Melhores DS%"
+          icone={<Star className="text-yellow-400" />}
+          rotas={melhoresDs}
+          vazio="Nenhuma rota encontrada."
+        />
+      </div>
+
+      <PremiumCard className="mb-5">
+        <div className="flex items-center gap-3 mb-5">
+          <XCircle className="text-red-400" />
+          <div>
+            <h2 className="text-white text-2xl font-black">
+              Falhas de Entrega
+            </h2>
+            <p className="text-zinc-500 text-sm">
+              Rotas ordenadas pela maior quantidade de falhas.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {rotasComFalha.map((rota, index) => (
+            <div
+              key={rota.id}
+              className="grid grid-cols-1 lg:grid-cols-[55px_1fr_auto] gap-3 items-center rounded-2xl border border-zinc-800 bg-black p-4"
+            >
+              <span className="text-zinc-600 font-black text-xl">
+                {index + 1}.
+              </span>
+              <div>
+                <p className="text-white font-black">
+                  {nomeDaRota(rota)} — {rota.motoristaNome}
+                </p>
+                <p className="text-zinc-500 text-sm mt-1">
+                  Falhas: {rota.falhas} | Pendentes: {rota.pendentes} |
+                  Status: {rota.statusOperacional}
+                </p>
+              </div>
+              <span className="text-red-400 text-2xl font-black">
+                {rota.falhas}
+              </span>
+            </div>
+          ))}
+
+          {rotasComFalha.length === 0 && (
+            <p className="text-zinc-500 text-center py-8">
+              Nenhuma falha registrada neste dia.
+            </p>
+          )}
+        </div>
+      </PremiumCard>
+
+      <PremiumCard className="mb-5">
+        <div className="flex items-center gap-3 mb-5">
+          <AlertTriangle className="text-yellow-400" />
+          <div>
+            <h2 className="text-white text-2xl font-black">
+              Justificativas — Rotas com Alerta
+            </h2>
+            <p className="text-zinc-500 text-sm">
+              Aparecem aqui rotas com DS abaixo de {LIMITE_ALERTA_DS}%,
+              falhas ou pacotes pendentes.
+            </p>
+          </div>
         </div>
 
         <div className="space-y-4">
-          {metricas.map((item) => (
+          {rotasComAlerta.map((rota) => (
             <div
-              key={item.id}
-              className="rounded-3xl bg-black border border-zinc-800 p-5 hover:border-yellow-400/40 transition"
+              key={rota.id}
+              className="rounded-2xl border border-zinc-800 bg-black p-5"
             >
-              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
                 <div>
-                  <h3 className="text-white text-2xl font-black">
-                    {item.motoristaNome}
-                  </h3>
-
-                  <p className="text-zinc-400 text-sm mt-2">
-                    {item.data} • ID Rota:{" "}
-                    {item.idRota ? (
-                      <a
-                        href={gerarLinkMercadoLivre(item.idRota)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-yellow-400 underline font-bold"
-                      >
-                        {item.idRota}
-                      </a>
-                    ) : (
-                      "-"
-                    )}{" "}
-                    • Gaiola: {item.codigoGaiola || "-"}
+                  <p className="text-white font-black text-lg">
+                    {nomeDaRota(rota)} — {rota.motoristaNome}
                   </p>
-
                   <p className="text-zinc-500 text-sm mt-1">
-                    Pacotes: {item.qtdPacotesTotal} | Insucessos:{" "}
-                    {item.qtdPacotesNaoEntregues}
+                    DS: {rota.dsOperacional}% | {rota.entregues}/{rota.total} |
+                    Falhas: {rota.falhas} | Pendentes: {rota.pendentes}
                   </p>
                 </div>
+                <span className="text-yellow-400 font-black">
+                  {rota.statusOperacional}
+                </span>
+              </div>
 
-                <div className="text-yellow-400 text-5xl font-black">
-                  {item.ds}%
-                </div>
+              <div className="flex flex-col lg:flex-row gap-3">
+                <textarea
+                  value={
+                    justificativas[rota.id] ??
+                    rota.motivoNaoEntrega ??
+                    ""
+                  }
+                  onChange={(event) =>
+                    setJustificativas((atuais) => ({
+                      ...atuais,
+                      [rota.id]: event.target.value,
+                    }))
+                  }
+                  placeholder="Ex: atraso na saída, área com acesso difícil, veículo parado ou ação tomada..."
+                  rows={3}
+                  className="flex-1 p-4 rounded-2xl bg-zinc-950 border border-zinc-800 text-white outline-none focus:border-yellow-400 resize-y"
+                />
+                <button
+                  onClick={() => salvarJustificativa(rota)}
+                  disabled={salvandoJustificativa === rota.id}
+                  className="self-stretch lg:self-end flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-white font-black px-5 py-4 rounded-2xl transition"
+                >
+                  <Save size={17} />
+                  {salvandoJustificativa === rota.id
+                    ? "Salvando..."
+                    : "Salvar justificativa"}
+                </button>
               </div>
             </div>
           ))}
 
-          {metricas.length === 0 && (
-            <div className="rounded-3xl bg-black border border-zinc-800 p-10 text-center">
-              <p className="text-zinc-500">
-                Nenhuma métrica cadastrada.
-              </p>
-            </div>
+          {rotasComAlerta.length === 0 && (
+            <p className="text-zinc-500 text-center py-8">
+              Nenhuma rota exige justificativa neste dia.
+            </p>
           )}
         </div>
       </PremiumCard>
+
+      <PremiumCard>
+        <h2 className="text-white text-2xl font-black">
+          Observações Gerais do Dispatcher
+        </h2>
+        <p className="text-zinc-500 text-sm mt-1 mb-4">
+          Registre clima, eventos externos, problemas na estação e decisões
+          tomadas durante a operação.
+        </p>
+        <textarea
+          value={observacoesGerais}
+          onChange={(event) => setObservacoesGerais(event.target.value)}
+          placeholder="Adicione as observações gerais da operação..."
+          rows={6}
+          className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white outline-none focus:border-yellow-400 resize-y"
+        />
+        <button
+          onClick={salvarCabecalho}
+          disabled={salvandoCabecalho}
+          className="mt-4 flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-black font-black px-6 py-4 rounded-2xl transition"
+        >
+          <Save size={18} />
+          {salvandoCabecalho ? "Salvando..." : "Salvar fechamento do dia"}
+        </button>
+      </PremiumCard>
     </PageShell>
+  );
+}
+
+function ResumoCard({
+  titulo,
+  valor,
+  icone,
+  cor = "text-white",
+}: {
+  titulo: string;
+  valor: number | string;
+  icone: React.ReactNode;
+  cor?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-black p-4">
+      <div className={`${cor} [&>svg]:h-5 [&>svg]:w-5`}>{icone}</div>
+      <p className="text-zinc-500 text-xs mt-4">{titulo}</p>
+      <p className={`${cor} text-3xl font-black mt-1`}>{valor}</p>
+    </div>
+  );
+}
+
+function StatusCard({ titulo, valor }: { titulo: string; valor: number }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-zinc-950 border border-zinc-800 px-4 py-3">
+      <span className="text-zinc-500 text-sm">{titulo}</span>
+      <span className="text-white font-black">{valor}</span>
+    </div>
+  );
+}
+
+function ListaDesempenho({
+  titulo,
+  icone,
+  rotas,
+  vazio,
+}: {
+  titulo: string;
+  icone: React.ReactNode;
+  rotas: ReturnType<typeof linhaDaRota>[];
+  vazio: string;
+}) {
+  return (
+    <PremiumCard>
+      <div className="flex items-center gap-3 mb-5">
+        {icone}
+        <h2 className="text-white text-2xl font-black">{titulo}</h2>
+      </div>
+
+      <div className="space-y-3">
+        {rotas.map((rota, index) => (
+          <div
+            key={rota.id}
+            className="flex items-start gap-3 rounded-2xl border border-zinc-800 bg-black p-4"
+          >
+            <span className="text-zinc-600 font-black">{index + 1}.</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-white font-black truncate">
+                {nomeDaRota(rota)} — {rota.motoristaNome}
+              </p>
+              <p className="text-zinc-500 text-sm mt-1">
+                DS: {rota.dsOperacional}% | {rota.entregues}/{rota.total} |
+                Pendentes: {rota.pendentes}
+              </p>
+            </div>
+          </div>
+        ))}
+
+        {rotas.length === 0 && (
+          <p className="text-zinc-500 text-center py-8">{vazio}</p>
+        )}
+      </div>
+    </PremiumCard>
   );
 }

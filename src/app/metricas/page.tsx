@@ -32,7 +32,7 @@ import {
   verificarExtensaoMercadoLivre,
 } from "@/services/mercadoLivreExtensionService";
 
-import { calcularDS } from "@/utils/calcDS";
+import { calcularDSPorEntregas } from "@/utils/calcDS";
 
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
@@ -166,7 +166,7 @@ export default function MetricasPage() {
             statusRota: rota.status,
             substatusRota: rota.substatus,
             placaVeiculo: rota.vehicleLicense,
-            ds: calcularDS(rota.total, rota.failed),
+            ds: calcularDSPorEntregas(rota.total, rota.delivered),
           },
         ]);
 
@@ -308,7 +308,7 @@ export default function MetricasPage() {
             statusRota: rota.status,
             substatusRota: rota.substatus,
             placaVeiculo: rota.vehicleLicense,
-            ds: calcularDS(rota.total, rota.failed),
+            ds: calcularDSPorEntregas(rota.total, rota.delivered),
           });
         }
       }

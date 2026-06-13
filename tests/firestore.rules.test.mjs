@@ -203,6 +203,32 @@ test("gestor pode cadastrar rota provisoria somente com ID", async () => {
   );
 });
 
+test("gestor salva relatorio diario somente na propria base", async () => {
+  const db = testEnv
+    .authenticatedContext("gestor-1", {
+      email: "gestor@alto-vale.test",
+    })
+    .firestore();
+
+  await assertSucceeds(
+    setDoc(doc(db, "relatoriosDiarios", "blumenau-2026-06-12"), {
+      baseId: "blumenau",
+      data: "2026-06-12",
+      dispatcher: "Teste",
+      observacoesGerais: "Operacao encerrada.",
+    })
+  );
+
+  await assertFails(
+    setDoc(doc(db, "relatoriosDiarios", "outra-base-2026-06-12"), {
+      baseId: "outra-base",
+      data: "2026-06-12",
+      dispatcher: "Teste",
+      observacoesGerais: "",
+    })
+  );
+});
+
 test("somente admin pode listar usuarios", async () => {
   const gestorDb = testEnv
     .authenticatedContext("gestor-1", {
