@@ -17,9 +17,8 @@ import PremiumCard from "@/components/ui/premiumCard";
 
 import { useBase } from "@/contexts/BaseContext";
 import type { Metrica } from "@/types/metricas";
-import type { Motorista } from "@/types/motorista";
 import { gerarLinkMercadoLivre } from "@/utils/mercadolivre";
-import { listarMotoristas } from "@/services/motoristaService";
+import { criarMotorista } from "@/services/motoristaService";
 
 import {
   criarMetrica,
@@ -50,15 +49,6 @@ function obterDataHoje() {
   return `${ano}-${mes}-${dia}`;
 }
 
-function normalizarNome(nome: string) {
-  return nome
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
 export default function MetricasPage() {
   const { baseAtual } = useBase();
 
@@ -66,49 +56,28 @@ export default function MetricasPage() {
   const searchParams = useSearchParams();
   const idRotaFiltro = searchParams.get("idRota") || "";
 
-  const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [metricas, setMetricas] = useState<Metrica[]>([]);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
-  const [motoristaId, setMotoristaId] = useState("");
-  const [motoristaNome, setMotoristaNome] = useState("");
   const [data, setData] = useState(obterDataHoje);
-  const [codigoGaiola, setCodigoGaiola] = useState("");
   const [idRota, setIdRota] = useState("");
-  const [total, setTotal] = useState("");
-  const [insucesso, setInsucesso] = useState("");
-  const [motivo, setMotivo] = useState("");
   const [extensaoDisponivel, setExtensaoDisponivel] = useState<boolean | null>(
     null
   );
   const [sincronizando, setSincronizando] = useState(false);
   const [mensagemSincronizacao, setMensagemSincronizacao] = useState("");
 
-  const ds = calcularDS(Number(total), Number(insucesso));
-
   async function carregarDados() {
     if (!baseAtual) return;
 
-    const [motoristasData, metricasData] = await Promise.all([
-      listarMotoristas(baseAtual),
-      listarMetricas(baseAtual),
-    ]);
-
-    setMotoristas(motoristasData);
-    setMetricas(metricasData);
+    setMetricas(await listarMetricas(baseAtual));
   }
 
   function limparFormulario() {
     setEditandoId(null);
-    setMotoristaId("");
-    setMotoristaNome("");
     setData(obterDataHoje());
-    setCodigoGaiola("");
     setIdRota("");
-    setTotal("");
-    setInsucesso("");
-    setMotivo("");
   }
 
   async function handleSalvar() {
@@ -135,27 +104,27 @@ export default function MetricasPage() {
       return;
     }
 
-    const payload = {
-      motoristaId,
-      motoristaNome: motoristaNome || "Aguardando sincronização",
-      data,
-      codigoGaiola,
-      idRota: idRotaNormalizado,
-      baseId: baseAtual,
-      qtdPacotesTotal: Number(total || 0),
-      qtdPacotesNaoEntregues: Number(insucesso),
-      motivoNaoEntrega: motivo,
-      ds,
-      updatedAt: new Date(),
-    };
-
     if (editandoId) {
-      await editarMetrica(editandoId, payload);
+      await editarMetrica(editandoId, {
+        data,
+        idRota: idRotaNormalizado,
+        updatedAt: new Date(),
+      });
       alert("Métrica atualizada");
     } else {
       const novaMetrica = await criarMetrica({
-        ...payload,
+        motoristaId: "",
+        motoristaNome: "Aguardando sincronização",
+        data,
+        codigoGaiola: "",
+        idRota: idRotaNormalizado,
+        baseId: baseAtual,
+        qtdPacotesTotal: 0,
+        qtdPacotesNaoEntregues: 0,
+        motivoNaoEntrega: "",
+        ds: 0,
         createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       try {
@@ -175,11 +144,7 @@ export default function MetricasPage() {
         }
 
         const motoristaCorrespondente = rota.driverName
-          ? motoristas.find(
-              (motorista) =>
-                normalizarNome(motorista.nomeCompleto) ===
-                normalizarNome(rota.driverName)
-            )
+          ? await criarMotorista(rota.driverName, baseAtual)
           : undefined;
 
         await atualizarMetricasMercadoLivre([
@@ -219,14 +184,8 @@ export default function MetricasPage() {
 
   function handleEditar(metrica: Metrica) {
     setEditandoId(metrica.id);
-    setMotoristaId(metrica.motoristaId);
-    setMotoristaNome(metrica.motoristaNome);
     setData(metrica.data);
     setIdRota(metrica.idRota || "");
-    setCodigoGaiola(metrica.codigoGaiola || "");
-    setTotal(String(metrica.qtdPacotesTotal || ""));
-    setInsucesso(String(metrica.qtdPacotesNaoEntregues || ""));
-    setMotivo(metrica.motivoNaoEntrega || "");
 
     window.scrollTo({
       top: 0,
@@ -248,16 +207,12 @@ export default function MetricasPage() {
     let ativo = true;
 
     const carregamento = baseAtual
-      ? Promise.all([
-          listarMotoristas(baseAtual),
-          listarMetricas(baseAtual),
-        ])
-      : Promise.resolve<[Motorista[], Metrica[]]>([[], []]);
+      ? listarMetricas(baseAtual)
+      : Promise.resolve<Metrica[]>([]);
 
-    carregamento.then(([motoristasData, metricasData]) => {
+    carregamento.then((metricasData) => {
       if (!ativo) return;
 
-      setMotoristas(motoristasData);
       setMetricas(metricasData);
     });
 
@@ -320,7 +275,6 @@ export default function MetricasPage() {
       );
       const atualizacoes = [];
       let rotasComErro = 0;
-      let motoristasSemCorrespondencia = 0;
 
       for (const rota of rotas) {
         if (rota.error) {
@@ -332,16 +286,8 @@ export default function MetricasPage() {
           (metrica) => String(metrica.idRota) === rota.routeId
         );
         const motoristaCorrespondente = rota.driverName
-          ? motoristas.find(
-              (motorista) =>
-                normalizarNome(motorista.nomeCompleto) ===
-                normalizarNome(rota.driverName)
-            )
+          ? await criarMotorista(rota.driverName, baseAtual)
           : undefined;
-
-        if (rota.driverName && !motoristaCorrespondente) {
-          motoristasSemCorrespondencia += 1;
-        }
 
         for (const metrica of metricasDaRota) {
           atualizacoes.push({
@@ -373,9 +319,6 @@ export default function MetricasPage() {
       const detalhes = [
         `${atualizacoes.length} metrica(s) atualizada(s)`,
         rotasComErro > 0 ? `${rotasComErro} rota(s) com erro` : "",
-        motoristasSemCorrespondencia > 0
-          ? `${motoristasSemCorrespondencia} motorista(s) sem correspondencia exata`
-          : "",
       ]
         .filter(Boolean)
         .join(" | ");
@@ -426,27 +369,6 @@ export default function MetricasPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <select
-              value={motoristaId}
-              onChange={(e) => {
-                const motorista = motoristas.find(
-                  (m) => m.id === e.target.value
-                );
-
-                setMotoristaId(e.target.value);
-                setMotoristaNome(motorista?.nomeCompleto || "");
-              }}
-              className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white"
-            >
-              <option value="">Motorista (preenchido pela sincronização)</option>
-
-              {motoristas.map((motorista) => (
-                <option key={motorista.id} value={motorista.id}>
-                  {motorista.nomeCompleto}
-                </option>
-              ))}
-            </select>
-
             <div className="relative">
               <Calendar
                 className="pointer-events-none absolute left-4 top-4 text-zinc-500"
@@ -468,43 +390,12 @@ export default function MetricasPage() {
               onChange={(e) => setIdRota(e.target.value)}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
             />
-
-            <input
-              placeholder="Código da Gaiola (opcional)"
-              value={codigoGaiola}
-              onChange={(e) => setCodigoGaiola(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
-            />
-
-            <input
-              placeholder="Qtd pacotes total (opcional)"
-              value={total}
-              onChange={(e) => setTotal(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
-            />
-
-            <input
-              placeholder="Qtd não entregues (opcional)"
-              value={insucesso}
-              onChange={(e) => setInsucesso(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
-            />
           </div>
 
-          <textarea
-            placeholder="Motivo interno da não entrega"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            className="w-full mt-4 p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
-          />
-
-          <div className="mt-5 rounded-3xl bg-black border border-zinc-800 p-6">
-            <p className="text-zinc-500 text-sm uppercase tracking-[0.2em]">
-              DS da rota
-            </p>
-
-            <p className={`text-6xl font-black mt-3 ${corDS(ds)}`}>
-              {ds}%
+          <div className="mt-4 rounded-2xl border border-zinc-800 bg-black p-4">
+            <p className="text-sm text-zinc-400">
+              Motorista, cluster, placa e quantidades serão preenchidos pelo
+              painel após a sincronização.
             </p>
           </div>
 
@@ -550,11 +441,17 @@ export default function MetricasPage() {
 
             <div className="rounded-2xl bg-black border border-zinc-800 p-5">
               <p className="text-zinc-500 text-sm">
-                DS Atual
+                Rotas sincronizadas
               </p>
 
-              <p className={`text-4xl font-black mt-2 ${corDS(ds)}`}>
-                {ds}%
+              <p className="text-emerald-400 text-4xl font-black mt-2">
+                {
+                  metricasDoDia.filter(
+                    (metrica) =>
+                      metrica.origemSincronizacao ===
+                      "mercado_livre_extensao"
+                  ).length
+                }
               </p>
             </div>
           </div>

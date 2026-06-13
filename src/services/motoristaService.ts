@@ -1,10 +1,10 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
   getDocs,
   query,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -15,22 +15,56 @@ import { criarLog } from "./logService";
 
 const COLLECTION = "motoristas";
 
+export function normalizarNomeMotorista(nome: string) {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 export async function criarMotorista(
   nomeCompleto: string,
   baseId: string
 ) {
-  await criarLog(
-    "CRIAR_MOTORISTA",
-    `Motorista criado: ${nomeCompleto} | Base: ${baseId}`
+  const nomeLimpo = nomeCompleto.trim();
+  const nomeNormalizado = normalizarNomeMotorista(nomeLimpo);
+  const motoristas = await listarMotoristas(baseId);
+  const existente = motoristas.find(
+    (motorista) =>
+      normalizarNomeMotorista(motorista.nomeCompleto) === nomeNormalizado
   );
 
-  return addDoc(collection(db, COLLECTION), {
-    nomeCompleto,
+  if (existente) {
+    return existente;
+  }
+
+  await criarLog(
+    "CRIAR_MOTORISTA",
+    `Motorista criado: ${nomeLimpo} | Base: ${baseId}`
+  );
+
+  const motoristaId = encodeURIComponent(`${baseId}__${nomeNormalizado}`);
+  const referencia = doc(db, COLLECTION, motoristaId);
+
+  await setDoc(referencia, {
+    nomeCompleto: nomeLimpo,
+    nomeNormalizado,
     observacao: "",
     ativo: true,
     baseId,
     createdAt: new Date(),
   });
+
+  return {
+    id: motoristaId,
+    nomeCompleto: nomeLimpo,
+    nomeNormalizado,
+    observacao: "",
+    ativo: true,
+    baseId,
+  } satisfies Motorista;
 }
 
 export async function listarMotoristas(baseId?: string) {
