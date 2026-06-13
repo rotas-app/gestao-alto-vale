@@ -117,21 +117,32 @@ export default function MetricasPage() {
       return;
     }
 
-    if (!motoristaId || !data || !idRota || !codigoGaiola || !total) {
-      alert(
-        "Preencha motorista, data, ID da rota, código da gaiola e total de pacotes"
-      );
+    const idRotaNormalizado = idRota.trim();
+
+    if (!data || !/^\d{6,15}$/.test(idRotaNormalizado)) {
+      alert("Preencha um ID de rota válido.");
+      return;
+    }
+
+    const rotaDuplicada = metricas.some(
+      (metrica) =>
+        metrica.id !== editandoId &&
+        String(metrica.idRota || "") === idRotaNormalizado
+    );
+
+    if (rotaDuplicada) {
+      alert("Este ID de rota já está cadastrado nesta base.");
       return;
     }
 
     const payload = {
       motoristaId,
-      motoristaNome,
+      motoristaNome: motoristaNome || "Aguardando sincronização",
       data,
       codigoGaiola,
-      idRota,
+      idRota: idRotaNormalizado,
       baseId: baseAtual,
-      qtdPacotesTotal: Number(total),
+      qtdPacotesTotal: Number(total || 0),
       qtdPacotesNaoEntregues: Number(insucesso),
       motivoNaoEntrega: motivo,
       ds,
@@ -142,12 +153,64 @@ export default function MetricasPage() {
       await editarMetrica(editandoId, payload);
       alert("Métrica atualizada");
     } else {
-      await criarMetrica({
+      const novaMetrica = await criarMetrica({
         ...payload,
         createdAt: new Date(),
       });
 
-      alert("Métrica salva");
+      try {
+        const disponivel = await verificarExtensaoMercadoLivre();
+        setExtensaoDisponivel(disponivel);
+
+        if (!disponivel) {
+          throw new Error("Extensão não detectada.");
+        }
+
+        const [rota] = await sincronizarRotasMercadoLivre([
+          idRotaNormalizado,
+        ]);
+
+        if (!rota || rota.error) {
+          throw new Error(rota?.error || "Rota não encontrada no painel.");
+        }
+
+        const motoristaCorrespondente = rota.driverName
+          ? motoristas.find(
+              (motorista) =>
+                normalizarNome(motorista.nomeCompleto) ===
+                normalizarNome(rota.driverName)
+            )
+          : undefined;
+
+        await atualizarMetricasMercadoLivre([
+          {
+            id: novaMetrica.id,
+            motoristaId: motoristaCorrespondente?.id,
+            motoristaNome:
+              motoristaCorrespondente?.nomeCompleto ||
+              rota.driverName ||
+              "Motorista não identificado",
+            motoristaNomeMercadoLivre: rota.driverName,
+            codigoGaiola: rota.cluster,
+            qtdPacotesTotal: rota.total,
+            qtdPacotesEntregues: rota.delivered,
+            qtdPacotesNaoEntregues: rota.failed,
+            qtdPacotesPendentes: rota.pending,
+            qtdPacotesFalhas: rota.failed,
+            qtdParadas: rota.stops,
+            statusRota: rota.status,
+            substatusRota: rota.substatus,
+            placaVeiculo: rota.vehicleLicense,
+            ds: calcularDS(rota.total, rota.failed),
+          },
+        ]);
+
+        alert("Rota cadastrada e sincronizada.");
+      } catch {
+        alert(
+          "ID cadastrado. Não foi possível sincronizar agora; tente novamente pelo botão de sincronização."
+        );
+      }
     }
 
     limparFormulario();
@@ -285,7 +348,9 @@ export default function MetricasPage() {
             id: metrica.id,
             motoristaId: motoristaCorrespondente?.id,
             motoristaNome:
-              motoristaCorrespondente?.nomeCompleto || metrica.motoristaNome,
+              motoristaCorrespondente?.nomeCompleto ||
+              rota.driverName ||
+              metrica.motoristaNome,
             motoristaNomeMercadoLivre: rota.driverName,
             codigoGaiola: rota.cluster || metrica.codigoGaiola || "",
             qtdPacotesTotal: rota.total,
@@ -345,7 +410,7 @@ export default function MetricasPage() {
               </h2>
 
               <p className="text-zinc-500 text-sm">
-                Cadastro operacional por rota.
+                Informe somente o ID para buscar os dados automaticamente.
               </p>
             </div>
           </div>
@@ -373,7 +438,7 @@ export default function MetricasPage() {
               }}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white"
             >
-              <option value="">Selecione o motorista</option>
+              <option value="">Motorista (preenchido pela sincronização)</option>
 
               {motoristas.map((motorista) => (
                 <option key={motorista.id} value={motorista.id}>
@@ -405,21 +470,21 @@ export default function MetricasPage() {
             />
 
             <input
-              placeholder="Código da Gaiola"
+              placeholder="Código da Gaiola (opcional)"
               value={codigoGaiola}
               onChange={(e) => setCodigoGaiola(e.target.value)}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
             />
 
             <input
-              placeholder="Qtd pacotes total"
+              placeholder="Qtd pacotes total (opcional)"
               value={total}
               onChange={(e) => setTotal(e.target.value)}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
             />
 
             <input
-              placeholder="Qtd não entregues"
+              placeholder="Qtd não entregues (opcional)"
               value={insucesso}
               onChange={(e) => setInsucesso(e.target.value)}
               className="w-full p-4 rounded-2xl bg-black border border-zinc-800 text-white placeholder:text-zinc-500"
@@ -449,7 +514,7 @@ export default function MetricasPage() {
               className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black px-6 py-4 rounded-2xl transition"
             >
               <Save size={18} />
-              {editandoId ? "Salvar Alterações" : "Salvar Métrica"}
+              {editandoId ? "Salvar Alterações" : "Cadastrar ID e sincronizar"}
             </button>
 
             {editandoId && (

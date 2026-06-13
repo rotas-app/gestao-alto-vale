@@ -19,7 +19,7 @@ export async function gerarRankingPorPeriodo(
   const hoje = new Date();
 
   const filtradas = metricas.filter((item) => {
-    if (!item.data) return false;
+    if (!item.data || !item.motoristaId) return false;
 
     const data = new Date(`${item.data}T00:00:00`);
 

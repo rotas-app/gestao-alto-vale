@@ -181,6 +181,28 @@ test("gestor atualiza metricas agregadas somente na propria base", async () => {
   );
 });
 
+test("gestor pode cadastrar rota provisoria somente com ID", async () => {
+  const db = testEnv
+    .authenticatedContext("gestor-1", {
+      email: "gestor@alto-vale.test",
+    })
+    .firestore();
+
+  await assertSucceeds(
+    setDoc(doc(db, "metricas", "rota-provisoria"), {
+      motoristaId: "",
+      motoristaNome: "Aguardando sincronizacao",
+      baseId: "blumenau",
+      data: "2026-06-12",
+      idRota: "393102382",
+      codigoGaiola: "",
+      qtdPacotesTotal: 0,
+      qtdPacotesNaoEntregues: 0,
+      ds: 0,
+    })
+  );
+});
+
 test("somente admin pode listar usuarios", async () => {
   const gestorDb = testEnv
     .authenticatedContext("gestor-1", {
