@@ -34,6 +34,8 @@ import {
 
 import { calcularDSPorEntregas } from "@/utils/calcDS";
 
+const INTERVALO_SINCRONIZACAO_MS = 15 * 60 * 1000;
+
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
   if (ds >= 95) return "text-yellow-400";
@@ -47,6 +49,19 @@ function obterDataHoje() {
   const dia = String(hoje.getDate()).padStart(2, "0");
 
   return `${ano}-${mes}-${dia}`;
+}
+
+function chaveUltimaSincronizacao(baseId: string, data: string) {
+  return `alto-vale:ultima-sincronizacao:${baseId}:${data}`;
+}
+
+function formatarTempoRestante(segundos: number) {
+  const minutos = Math.floor(segundos / 60);
+  const segundosRestantes = segundos % 60;
+
+  return `${String(minutos).padStart(2, "0")}:${String(
+    segundosRestantes
+  ).padStart(2, "0")}`;
 }
 
 export default function MetricasPage() {
@@ -66,6 +81,9 @@ export default function MetricasPage() {
     null
   );
   const [sincronizando, setSincronizando] = useState(false);
+  const [salvandoCadastro, setSalvandoCadastro] = useState(false);
+  const [bloqueadoAte, setBloqueadoAte] = useState(0);
+  const [agora, setAgora] = useState(() => new Date().getTime());
   const [mensagemSincronizacao, setMensagemSincronizacao] = useState("");
 
   async function carregarDados() {
@@ -81,6 +99,8 @@ export default function MetricasPage() {
   }
 
   async function handleSalvar() {
+    if (salvandoCadastro) return;
+
     if (!baseAtual) {
       alert("Selecione uma base");
       return;
@@ -104,82 +124,88 @@ export default function MetricasPage() {
       return;
     }
 
-    if (editandoId) {
-      await editarMetrica(editandoId, {
-        data,
-        idRota: idRotaNormalizado,
-        updatedAt: new Date(),
-      });
-      alert("Métrica atualizada");
-    } else {
-      const novaMetrica = await criarMetrica({
-        motoristaId: "",
-        motoristaNome: "Aguardando sincronização",
-        data,
-        codigoGaiola: "",
-        idRota: idRotaNormalizado,
-        baseId: baseAtual,
-        qtdPacotesTotal: 0,
-        qtdPacotesNaoEntregues: 0,
-        motivoNaoEntrega: "",
-        ds: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+    setSalvandoCadastro(true);
 
-      try {
-        const disponivel = await verificarExtensaoMercadoLivre();
-        setExtensaoDisponivel(disponivel);
+    try {
+      if (editandoId) {
+        await editarMetrica(editandoId, {
+          data,
+          idRota: idRotaNormalizado,
+          updatedAt: new Date(),
+        });
+        alert("Métrica atualizada");
+      } else {
+        const novaMetrica = await criarMetrica({
+          motoristaId: "",
+          motoristaNome: "Aguardando sincronização",
+          data,
+          codigoGaiola: "",
+          idRota: idRotaNormalizado,
+          baseId: baseAtual,
+          qtdPacotesTotal: 0,
+          qtdPacotesNaoEntregues: 0,
+          motivoNaoEntrega: "",
+          ds: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
 
-        if (!disponivel) {
-          throw new Error("Extensão não detectada.");
+        try {
+          const disponivel = await verificarExtensaoMercadoLivre();
+          setExtensaoDisponivel(disponivel);
+
+          if (!disponivel) {
+            throw new Error("Extensão não detectada.");
+          }
+
+          const [rota] = await sincronizarRotasMercadoLivre([
+            idRotaNormalizado,
+          ]);
+
+          if (!rota || rota.error) {
+            throw new Error(rota?.error || "Rota não encontrada no painel.");
+          }
+
+          const motoristaCorrespondente = rota.driverName
+            ? await criarMotorista(rota.driverName, baseAtual)
+            : undefined;
+
+          await atualizarMetricasMercadoLivre([
+            {
+              id: novaMetrica.id,
+              motoristaId: motoristaCorrespondente?.id,
+              motoristaNome:
+                motoristaCorrespondente?.nomeCompleto ||
+                rota.driverName ||
+                "Motorista não identificado",
+              motoristaNomeMercadoLivre: rota.driverName,
+              codigoGaiola: rota.cluster,
+              qtdPacotesTotal: rota.total,
+              qtdPacotesEntregues: rota.delivered,
+              qtdPacotesNaoEntregues: rota.failed,
+              qtdPacotesPendentes: rota.pending,
+              qtdPacotesFalhas: rota.failed,
+              qtdParadas: rota.stops,
+              statusRota: rota.status,
+              substatusRota: rota.substatus,
+              placaVeiculo: rota.vehicleLicense,
+              ds: calcularDSPorEntregas(rota.total, rota.delivered),
+            },
+          ]);
+
+          alert("Rota cadastrada e sincronizada.");
+        } catch {
+          alert(
+            "ID cadastrado. Não foi possível sincronizar agora; tente novamente pelo botão de sincronização."
+          );
         }
-
-        const [rota] = await sincronizarRotasMercadoLivre([
-          idRotaNormalizado,
-        ]);
-
-        if (!rota || rota.error) {
-          throw new Error(rota?.error || "Rota não encontrada no painel.");
-        }
-
-        const motoristaCorrespondente = rota.driverName
-          ? await criarMotorista(rota.driverName, baseAtual)
-          : undefined;
-
-        await atualizarMetricasMercadoLivre([
-          {
-            id: novaMetrica.id,
-            motoristaId: motoristaCorrespondente?.id,
-            motoristaNome:
-              motoristaCorrespondente?.nomeCompleto ||
-              rota.driverName ||
-              "Motorista não identificado",
-            motoristaNomeMercadoLivre: rota.driverName,
-            codigoGaiola: rota.cluster,
-            qtdPacotesTotal: rota.total,
-            qtdPacotesEntregues: rota.delivered,
-            qtdPacotesNaoEntregues: rota.failed,
-            qtdPacotesPendentes: rota.pending,
-            qtdPacotesFalhas: rota.failed,
-            qtdParadas: rota.stops,
-            statusRota: rota.status,
-            substatusRota: rota.substatus,
-            placaVeiculo: rota.vehicleLicense,
-            ds: calcularDSPorEntregas(rota.total, rota.delivered),
-          },
-        ]);
-
-        alert("Rota cadastrada e sincronizada.");
-      } catch {
-        alert(
-          "ID cadastrado. Não foi possível sincronizar agora; tente novamente pelo botão de sincronização."
-        );
       }
-    }
 
-    limparFormulario();
-    await carregarDados();
+      limparFormulario();
+      await carregarDados();
+    } finally {
+      setSalvandoCadastro(false);
+    }
   }
 
   function handleEditar(metrica: Metrica) {
@@ -235,6 +261,34 @@ export default function MetricasPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const temporizador = window.setTimeout(() => {
+      if (!baseAtual || !data) {
+        setBloqueadoAte(0);
+        return;
+      }
+
+      const valorSalvo = Number(
+        localStorage.getItem(chaveUltimaSincronizacao(baseAtual, data)) || 0
+      );
+
+      setBloqueadoAte(valorSalvo);
+      setAgora(new Date().getTime());
+    }, 0);
+
+    return () => window.clearTimeout(temporizador);
+  }, [baseAtual, data]);
+
+  useEffect(() => {
+    if (bloqueadoAte <= new Date().getTime()) return;
+
+    const intervalo = window.setInterval(() => {
+      setAgora(new Date().getTime());
+    }, 1000);
+
+    return () => window.clearInterval(intervalo);
+  }, [bloqueadoAte]);
+
   const metricasDoDia = metricas
     .filter((item) => {
       if (idRotaFiltro) {
@@ -247,7 +301,22 @@ export default function MetricasPage() {
     })
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
 
+  const segundosRestantes = Math.max(
+    0,
+    Math.ceil((bloqueadoAte - agora) / 1000)
+  );
+  const sincronizacaoBloqueada = segundosRestantes > 0;
+
   async function handleSincronizarRotas() {
+    if (sincronizacaoBloqueada) {
+      alert(
+        `Aguarde ${formatarTempoRestante(
+          segundosRestantes
+        )} para sincronizar novamente.`
+      );
+      return;
+    }
+
     const metricasComRota = metricasDoDia.filter((metrica) =>
       /^\d{6,15}$/.test(String(metrica.idRota || "").trim())
     );
@@ -269,6 +338,16 @@ export default function MetricasPage() {
           "Extensao nao detectada. Instale a pasta extension e recarregue esta pagina."
         );
       }
+
+      const horarioAtual = new Date().getTime();
+      const proximaSincronizacao =
+        horarioAtual + INTERVALO_SINCRONIZACAO_MS;
+      localStorage.setItem(
+        chaveUltimaSincronizacao(baseAtual, data),
+        String(proximaSincronizacao)
+      );
+      setBloqueadoAte(proximaSincronizacao);
+      setAgora(horarioAtual);
 
       const rotas = await sincronizarRotasMercadoLivre(
         metricasComRota.map((metrica) => String(metrica.idRota))
@@ -402,10 +481,15 @@ export default function MetricasPage() {
           <div className="flex flex-wrap gap-3 mt-5">
             <button
               onClick={handleSalvar}
-              className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black px-6 py-4 rounded-2xl transition"
+              disabled={salvandoCadastro}
+              className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-zinc-700 disabled:text-zinc-400 text-black font-black px-6 py-4 rounded-2xl transition"
             >
               <Save size={18} />
-              {editandoId ? "Salvar Alterações" : "Cadastrar ID e sincronizar"}
+              {salvandoCadastro
+                ? "Salvando..."
+                : editandoId
+                  ? "Salvar Alterações"
+                  : "Cadastrar ID e sincronizar"}
             </button>
 
             {editandoId && (
@@ -474,7 +558,7 @@ export default function MetricasPage() {
             <button
               type="button"
               onClick={handleSincronizarRotas}
-              disabled={sincronizando}
+              disabled={sincronizando || sincronizacaoBloqueada}
               className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-zinc-700 disabled:text-zinc-400 text-black font-black px-5 py-3 rounded-2xl transition"
             >
               <RefreshCw
@@ -483,8 +567,14 @@ export default function MetricasPage() {
               />
               {sincronizando
                 ? "Sincronizando..."
+                : sincronizacaoBloqueada
+                  ? `Aguarde ${formatarTempoRestante(segundosRestantes)}`
                 : "Sincronizar rotas do dia"}
             </button>
+
+            <p className="text-zinc-500 text-xs">
+              Intervalo mínimo: 15 minutos por base e data.
+            </p>
 
             <p
               className={`text-xs font-bold ${
