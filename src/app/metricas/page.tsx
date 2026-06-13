@@ -6,7 +6,7 @@ import {
   Activity,
   Calendar,
   Pencil,
-  Route,
+  RefreshCw,
   Save,
   Trash2,
   Truck,
@@ -26,7 +26,12 @@ import {
   editarMetrica,
   excluirMetrica,
   listarMetricas,
+  atualizarMetricasMercadoLivre,
 } from "@/services/metricaService";
+import {
+  sincronizarRotasMercadoLivre,
+  verificarExtensaoMercadoLivre,
+} from "@/services/mercadoLivreExtensionService";
 
 import { calcularDS } from "@/utils/calcDS";
 
@@ -43,6 +48,15 @@ function obterDataHoje() {
   const dia = String(hoje.getDate()).padStart(2, "0");
 
   return `${ano}-${mes}-${dia}`;
+}
+
+function normalizarNome(nome: string) {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 export default function MetricasPage() {
@@ -65,6 +79,11 @@ export default function MetricasPage() {
   const [total, setTotal] = useState("");
   const [insucesso, setInsucesso] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [extensaoDisponivel, setExtensaoDisponivel] = useState<boolean | null>(
+    null
+  );
+  const [sincronizando, setSincronizando] = useState(false);
+  const [mensagemSincronizacao, setMensagemSincronizacao] = useState("");
 
   const ds = calcularDS(Number(total), Number(insucesso));
 
@@ -184,6 +203,20 @@ export default function MetricasPage() {
     };
   }, [baseAtual]);
 
+  useEffect(() => {
+    let ativo = true;
+
+    verificarExtensaoMercadoLivre().then((disponivel) => {
+      if (ativo) {
+        setExtensaoDisponivel(disponivel);
+      }
+    });
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
   const metricasDoDia = metricas
     .filter((item) => {
       if (idRotaFiltro) {
@@ -195,6 +228,104 @@ export default function MetricasPage() {
       return data ? item.data === data : true;
     })
     .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+
+  async function handleSincronizarRotas() {
+    const metricasComRota = metricasDoDia.filter((metrica) =>
+      /^\d{6,15}$/.test(String(metrica.idRota || "").trim())
+    );
+
+    if (metricasComRota.length === 0) {
+      alert("Nenhuma metrica visivel possui um ID de rota valido.");
+      return;
+    }
+
+    setSincronizando(true);
+    setMensagemSincronizacao("");
+
+    try {
+      const disponivel = await verificarExtensaoMercadoLivre();
+      setExtensaoDisponivel(disponivel);
+
+      if (!disponivel) {
+        throw new Error(
+          "Extensao nao detectada. Instale a pasta extension e recarregue esta pagina."
+        );
+      }
+
+      const rotas = await sincronizarRotasMercadoLivre(
+        metricasComRota.map((metrica) => String(metrica.idRota))
+      );
+      const atualizacoes = [];
+      let rotasComErro = 0;
+      let motoristasSemCorrespondencia = 0;
+
+      for (const rota of rotas) {
+        if (rota.error) {
+          rotasComErro += 1;
+          continue;
+        }
+
+        const metricasDaRota = metricasComRota.filter(
+          (metrica) => String(metrica.idRota) === rota.routeId
+        );
+        const motoristaCorrespondente = rota.driverName
+          ? motoristas.find(
+              (motorista) =>
+                normalizarNome(motorista.nomeCompleto) ===
+                normalizarNome(rota.driverName)
+            )
+          : undefined;
+
+        if (rota.driverName && !motoristaCorrespondente) {
+          motoristasSemCorrespondencia += 1;
+        }
+
+        for (const metrica of metricasDaRota) {
+          atualizacoes.push({
+            id: metrica.id,
+            motoristaId: motoristaCorrespondente?.id,
+            motoristaNome:
+              motoristaCorrespondente?.nomeCompleto || metrica.motoristaNome,
+            motoristaNomeMercadoLivre: rota.driverName,
+            codigoGaiola: rota.cluster || metrica.codigoGaiola || "",
+            qtdPacotesTotal: rota.total,
+            qtdPacotesEntregues: rota.delivered,
+            qtdPacotesNaoEntregues: rota.failed,
+            qtdPacotesPendentes: rota.pending,
+            qtdPacotesFalhas: rota.failed,
+            qtdParadas: rota.stops,
+            statusRota: rota.status,
+            substatusRota: rota.substatus,
+            placaVeiculo: rota.vehicleLicense,
+            ds: calcularDS(rota.total, rota.failed),
+          });
+        }
+      }
+
+      await atualizarMetricasMercadoLivre(atualizacoes);
+      await carregarDados();
+
+      const detalhes = [
+        `${atualizacoes.length} metrica(s) atualizada(s)`,
+        rotasComErro > 0 ? `${rotasComErro} rota(s) com erro` : "",
+        motoristasSemCorrespondencia > 0
+          ? `${motoristasSemCorrespondencia} motorista(s) sem correspondencia exata`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      setMensagemSincronizacao(detalhes);
+    } catch (error) {
+      const mensagem =
+        error instanceof Error ? error.message : "Falha ao sincronizar rotas.";
+
+      setMensagemSincronizacao(mensagem);
+      alert(mensagem);
+    } finally {
+      setSincronizando(false);
+    }
+  }
 
   return (
     <PageShell
@@ -377,8 +508,43 @@ export default function MetricasPage() {
             </p>
           </div>
 
-          <Route className="text-yellow-400" size={28} />
+          <div className="flex flex-col items-end gap-2">
+            <button
+              type="button"
+              onClick={handleSincronizarRotas}
+              disabled={sincronizando}
+              className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-zinc-700 disabled:text-zinc-400 text-black font-black px-5 py-3 rounded-2xl transition"
+            >
+              <RefreshCw
+                size={18}
+                className={sincronizando ? "animate-spin" : ""}
+              />
+              {sincronizando
+                ? "Sincronizando..."
+                : "Sincronizar rotas do dia"}
+            </button>
+
+            <p
+              className={`text-xs font-bold ${
+                extensaoDisponivel
+                  ? "text-emerald-400"
+                  : "text-zinc-500"
+              }`}
+            >
+              {extensaoDisponivel === null
+                ? "Verificando extensao..."
+                : extensaoDisponivel
+                  ? "Extensao conectada"
+                  : "Extensao nao detectada"}
+            </p>
+          </div>
         </div>
+
+        {mensagemSincronizacao && (
+          <div className="mb-5 rounded-2xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
+            {mensagemSincronizacao}
+          </div>
+        )}
 
         {idRotaFiltro && (
           <div className="mb-5 rounded-3xl bg-yellow-400/10 border border-yellow-400/40 p-5">
@@ -436,6 +602,24 @@ export default function MetricasPage() {
                     Pacotes: {metrica.qtdPacotesTotal} | Insucessos:{" "}
                     {metrica.qtdPacotesNaoEntregues}
                   </p>
+
+                  {metrica.origemSincronizacao ===
+                    "mercado_livre_extensao" && (
+                    <>
+                      <p className="text-zinc-500 text-sm mt-1">
+                        Entregues: {metrica.qtdPacotesEntregues || 0} |
+                        Pendentes: {metrica.qtdPacotesPendentes || 0} | Placa:{" "}
+                        {metrica.placaVeiculo || "-"} | Status:{" "}
+                        {metrica.statusRota || "-"}
+                      </p>
+                      {metrica.motoristaNomeMercadoLivre && (
+                        <p className="text-zinc-500 text-sm mt-1">
+                          Motorista no painel:{" "}
+                          {metrica.motoristaNomeMercadoLivre}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-start xl:items-end gap-4">

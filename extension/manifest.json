@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Alto Vale - Sincronizador de Rotas",
+  "version": "1.0.0",
+  "description": "Sincroniza manualmente metricas agregadas de rotas abertas no painel Mercado Livre.",
+  "permissions": [
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://envios.adminml.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gestao-alto-vale.vercel.app/*",
+        "http://localhost:3000/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Alto Vale - Sincronizador de Rotas"
+  }
+}

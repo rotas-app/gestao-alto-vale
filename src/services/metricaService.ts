@@ -5,6 +5,7 @@ import {
   doc,
   getDocs,
   query,
+  writeBatch,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -64,4 +65,54 @@ export async function excluirMetrica(id: string) {
   );
 
   return deleteDoc(doc(db, COLLECTION, id));
+}
+
+export interface AtualizacaoMetricaMercadoLivre {
+  id: string;
+  motoristaId?: string;
+  motoristaNome: string;
+  motoristaNomeMercadoLivre: string;
+  codigoGaiola: string;
+  qtdPacotesTotal: number;
+  qtdPacotesEntregues: number;
+  qtdPacotesNaoEntregues: number;
+  qtdPacotesPendentes: number;
+  qtdPacotesFalhas: number;
+  qtdParadas: number;
+  statusRota: string;
+  substatusRota: string;
+  placaVeiculo: string;
+  ds: number;
+}
+
+export async function atualizarMetricasMercadoLivre(
+  atualizacoes: AtualizacaoMetricaMercadoLivre[]
+) {
+  if (atualizacoes.length === 0) {
+    return;
+  }
+
+  const batch = writeBatch(db);
+
+  for (const atualizacao of atualizacoes) {
+    const {
+      id,
+      motoristaId,
+      ...dados
+    } = atualizacao;
+
+    batch.update(doc(db, COLLECTION, id), {
+      ...dados,
+      ...(motoristaId ? { motoristaId } : {}),
+      origemSincronizacao: "mercado_livre_extensao",
+      sincronizadoEm: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  await batch.commit();
+  await criarLog(
+    "SINCRONIZAR_METRICAS_MERCADO_LIVRE",
+    `${atualizacoes.length} metrica(s) atualizada(s) por extensao`
+  );
 }

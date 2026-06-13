@@ -137,6 +137,50 @@ test("gestor acessa somente documentos da propria base", async () => {
   await assertFails(getDoc(doc(db, "motoristas", "motorista-outra-base")));
 });
 
+test("gestor atualiza metricas agregadas somente na propria base", async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+
+    await setDoc(doc(db, "metricas", "metrica-blumenau"), {
+      motoristaId: "motorista-blumenau",
+      motoristaNome: "Motorista Blumenau",
+      baseId: "blumenau",
+      idRota: "393102382",
+      qtdPacotesTotal: 0,
+      qtdPacotesNaoEntregues: 0,
+      ds: 0,
+    });
+  });
+
+  const db = testEnv
+    .authenticatedContext("gestor-1", {
+      email: "gestor@alto-vale.test",
+    })
+    .firestore();
+
+  await assertSucceeds(
+    setDoc(
+      doc(db, "metricas", "metrica-blumenau"),
+      {
+        qtdPacotesTotal: 22,
+        qtdPacotesEntregues: 20,
+        qtdPacotesPendentes: 2,
+        qtdPacotesNaoEntregues: 0,
+        origemSincronizacao: "mercado_livre_extensao",
+      },
+      { merge: true }
+    )
+  );
+
+  await assertFails(
+    setDoc(
+      doc(db, "metricas", "metrica-blumenau"),
+      { baseId: "outra-base" },
+      { merge: true }
+    )
+  );
+});
+
 test("somente admin pode listar usuarios", async () => {
   const gestorDb = testEnv
     .authenticatedContext("gestor-1", {
