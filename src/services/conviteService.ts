@@ -1,13 +1,15 @@
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   signOut,
 } from "firebase/auth";
 
 import {
   doc,
   getDoc,
+  runTransaction,
+  serverTimestamp,
   setDoc,
-  updateDoc,
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
@@ -83,35 +85,62 @@ export async function aceitarConvite(
     throw new Error("Este convite não possui uma base vinculada");
   }
 
-  const cred =
-    await createUserWithEmailAndPassword(
-      auth,
-      convite.email,
-      senha
-    );
-
-  await setDoc(
-    doc(db, "usuarios", cred.user.uid),
-    {
-      uid: cred.user.uid,
-      nome: convite.nome,
-      email: convite.email,
-      baseId: convite.baseId,
-      cargo: "gestor",
-      status: "ativo",
-      conviteToken: token,
-      createdAt: new Date(),
-    }
+  const cred = await createUserWithEmailAndPassword(
+    auth,
+    convite.email,
+    senha
   );
 
-  await updateDoc(
-    doc(db, "convites", convite.id),
-    {
-      status: "aceito",
-      uid: cred.user.uid,
-      aceitoEm: new Date(),
+  try {
+    const usuarioRef = doc(db, "usuarios", cred.user.uid);
+    const conviteRef = doc(db, "convites", convite.id);
+
+    await runTransaction(db, async (transaction) => {
+      const conviteAtual = await transaction.get(conviteRef);
+
+      if (!conviteAtual.exists()) {
+        throw new Error("Convite inválido.");
+      }
+
+      const dados = conviteAtual.data() as Convite;
+
+      if (
+        dados.status !== "pendente"
+        || dados.email !== convite.email
+        || dados.baseId !== convite.baseId
+      ) {
+        throw new Error("Este convite já foi utilizado ou alterado.");
+      }
+
+      transaction.set(usuarioRef, {
+        uid: cred.user.uid,
+        nome: convite.nome,
+        email: convite.email,
+        baseId: convite.baseId,
+        cargo: "gestor",
+        status: "ativo",
+        conviteToken: token,
+        createdAt: serverTimestamp(),
+      });
+
+      transaction.update(conviteRef, {
+        status: "aceito",
+        uid: cred.user.uid,
+        aceitoEm: serverTimestamp(),
+      });
+    });
+  } catch (error) {
+    try {
+      await deleteUser(cred.user);
+    } catch (cleanupError) {
+      console.error(
+        "Falha ao remover conta após erro no aceite do convite:",
+        cleanupError
+      );
     }
-  );
+
+    throw error;
+  }
 
   await signOut(auth);
 

@@ -7,9 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:rules": "npx firebase-tools emulators:exec --only firestore \"node --test tests/firestore.rules.test.mjs\""
+    "test": "npm run test:rules",
+    "test:rules": "npx firebase-tools emulators:exec --project gestao-alto-vale-rules-test --only firestore \"node --test tests/firestore.rules.test.mjs\"",
+    "verify": "npx tsc --noEmit --pretty false && npx eslint src extension tests && npm run test:rules && npm run build"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.57.0",
     "dayjs": "^1.11.21",
     "firebase": "^12.14.0",
     "jspdf": "^4.2.1",

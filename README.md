@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gestao Interna Alto Vale
 
-## Getting Started
+Painel operacional para controle de bases, motoristas, rotas, metricas DS,
+rankings e relatorios da Alto Vale Transportes.
 
-First, run the development server:
+## Requisitos
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js 24
+- Java 21 ou superior para o emulador do Firestore
+- Projeto Firebase `gestao-interna-alto-vale`
+- Aplicacao publicada na Vercel
+
+## Ambiente local
+
+1. Copie as variaveis de `.env.example` para `.env.local`.
+2. Preencha as chaves publicas do aplicativo Web no Firebase.
+3. Execute `npm ci`.
+4. Execute `npm run dev`.
+5. Abra `http://localhost:3000`.
+
+As chaves `NEXT_PUBLIC_FIREBASE_*` identificam o projeto, mas nao substituem as
+regras de seguranca do Firestore. Nunca salve credenciais de conta de servico no
+repositorio.
+
+## Validacao
+
+```powershell
+npm run verify
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O comando executa TypeScript, ESLint, testes das regras do Firestore e build de
+producao. O mesmo processo roda no GitHub Actions em `.github/workflows/ci.yml`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Publicacao
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Aplicacao
 
-## Learn More
+A branch `main` deve estar conectada ao projeto Vercel
+`gestao-alto-vale`. Cadastre na Vercel as mesmas variaveis Firebase usadas
+localmente.
 
-To learn more about Next.js, take a look at the following resources:
+Para ativar o Sentry, adicione:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `NEXT_PUBLIC_SENTRY_DSN`
+- `NEXT_PUBLIC_APP_ENV=production`
+- `SENTRY_ORG`
+- `SENTRY_PROJECT`
+- `SENTRY_AUTH_TOKEN`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+O sistema nao envia cookies nem dados de formularios ao Sentry por padrao.
 
-## Deploy on Vercel
+### Regras do Firestore
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```powershell
+npm run test:rules
+npx firebase-tools deploy --only firestore:rules
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+O projeto padrao esta fixado em `.firebaserc`. Confira sempre no terminal se o
+destino exibido e `gestao-interna-alto-vale`.
+
+## Backup
+
+O backup gerenciado requer Firebase Blaze, um bucket Cloud Storage e permissoes
+de exportacao. Depois de criar esses recursos, configure no ambiente
+`production` do GitHub:
+
+- Variable `FIREBASE_PROJECT_ID`
+- Variable `FIRESTORE_BACKUP_BUCKET`
+- Variable `BACKUP_ENABLED=true`
+- Secret `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- Secret `GCP_BACKUP_SERVICE_ACCOUNT`
+
+O workflow `.github/workflows/firestore-backup.yml` solicita uma exportacao
+diaria as 00:30 no horario de Brasilia. O script local equivalente e:
+
+```powershell
+.\scripts\backup-firestore.ps1 `
+  -ProjectId gestao-interna-alto-vale `
+  -Bucket NOME_DO_BUCKET
+```
+
+Consulte [docs/OPERACAO.md](docs/OPERACAO.md) para restauracao, suporte e
+resposta a incidentes.
+
+## Documentos
+
+- [Operacao, suporte e recuperacao](docs/OPERACAO.md)
+- [Privacidade e LGPD](docs/PRIVACIDADE-LGPD.md)
+- [Autorizacao de integracao Mercado Livre](docs/AUTORIZACAO-MERCADO-LIVRE.md)
+- [Proposta comercial sugerida](docs/PROPOSTA-COMERCIAL.md)

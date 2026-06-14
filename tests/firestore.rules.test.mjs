@@ -13,6 +13,7 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   setDoc,
   where,
 } from "firebase/firestore";
@@ -48,6 +49,14 @@ beforeEach(async () => {
         nome: "Gestor",
         cargo: "gestor",
         status: "ativo",
+        baseId: "blumenau",
+      }),
+      setDoc(doc(db, "usuarios", "gestor-inativo"), {
+        uid: "gestor-inativo",
+        email: "inativo@alto-vale.test",
+        nome: "Gestor Inativo",
+        cargo: "gestor",
+        status: "inativo",
         baseId: "blumenau",
       }),
       setDoc(doc(db, "convites", "token-seguro"), {
@@ -119,6 +128,102 @@ test("convite valido permite criar somente perfil gestor vinculado", async () =>
   );
 });
 
+test("aceite grava perfil e consome convite na mesma transacao", async () => {
+  const db = testEnv
+    .authenticatedContext("novo-gestor", {
+      email: "novo@alto-vale.test",
+    })
+    .firestore();
+
+  await assertSucceeds(
+    runTransaction(db, async (transaction) => {
+      const conviteRef = doc(db, "convites", "token-seguro");
+      const convite = await transaction.get(conviteRef);
+
+      assert.equal(convite.data().status, "pendente");
+
+      transaction.set(doc(db, "usuarios", "novo-gestor"), {
+        uid: "novo-gestor",
+        email: "novo@alto-vale.test",
+        nome: "Novo Gestor",
+        cargo: "gestor",
+        status: "ativo",
+        baseId: "blumenau",
+        conviteToken: "token-seguro",
+      });
+
+      transaction.update(conviteRef, {
+        status: "aceito",
+        uid: "novo-gestor",
+        aceitoEm: new Date(),
+      });
+    })
+  );
+
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore();
+    const conviteAtualizado = await getDoc(
+      doc(adminDb, "convites", "token-seguro")
+    );
+
+    assert.equal(conviteAtualizado.data().status, "aceito");
+    assert.equal(conviteAtualizado.data().uid, "novo-gestor");
+  });
+});
+
+test("convite nao permite criar perfil em outra base", async () => {
+  const db = testEnv
+    .authenticatedContext("novo-gestor", {
+      email: "novo@alto-vale.test",
+    })
+    .firestore();
+
+  await assertFails(
+    setDoc(doc(db, "usuarios", "novo-gestor"), {
+      uid: "novo-gestor",
+      email: "novo@alto-vale.test",
+      nome: "Novo Gestor",
+      cargo: "gestor",
+      status: "ativo",
+      baseId: "outra-base",
+      conviteToken: "token-seguro",
+    })
+  );
+});
+
+test("convite aceito nao pode ser reutilizado", async () => {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+
+    await setDoc(
+      doc(db, "convites", "token-seguro"),
+      {
+        status: "aceito",
+        uid: "usuario-anterior",
+      },
+      { merge: true }
+    );
+  });
+
+  const db = testEnv
+    .authenticatedContext("novo-gestor", {
+      email: "novo@alto-vale.test",
+    })
+    .firestore();
+
+  await assertFails(
+    setDoc(doc(db, "usuarios", "novo-gestor"), {
+      uid: "novo-gestor",
+      email: "novo@alto-vale.test",
+      nome: "Novo Gestor",
+      cargo: "gestor",
+      status: "ativo",
+      baseId: "blumenau",
+      conviteToken: "token-seguro",
+    })
+  );
+});
+
 test("gestor acessa somente documentos da propria base", async () => {
   const db = testEnv
     .authenticatedContext("gestor-1", {
@@ -135,6 +240,23 @@ test("gestor acessa somente documentos da propria base", async () => {
     )
   );
   await assertFails(getDoc(doc(db, "motoristas", "motorista-outra-base")));
+});
+
+test("usuario inativo nao acessa dados operacionais", async () => {
+  const db = testEnv
+    .authenticatedContext("gestor-inativo", {
+      email: "inativo@alto-vale.test",
+    })
+    .firestore();
+
+  await assertFails(
+    getDocs(
+      query(
+        collection(db, "motoristas"),
+        where("baseId", "==", "blumenau")
+      )
+    )
+  );
 });
 
 test("gestor atualiza metricas agregadas somente na propria base", async () => {

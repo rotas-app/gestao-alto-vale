@@ -1,4 +1,5 @@
 import {
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut
 } from "firebase/auth";
@@ -18,4 +19,14 @@ export async function login(
 
 export async function logout() {
   return signOut(auth);
+}
+
+export async function recuperarSenha(email: string) {
+  const emailNormalizado = email.trim().toLowerCase();
+
+  if (!emailNormalizado) {
+    throw new Error("Informe seu e-mail para recuperar a senha.");
+  }
+
+  await sendPasswordResetEmail(auth, emailNormalizado);
 }

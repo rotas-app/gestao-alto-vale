@@ -4,11 +4,12 @@ import Image from "next/image";
 import { useState } from "react";
 import { Lock, Mail, ShieldCheck } from "lucide-react";
 
-import { login } from "@/services/authService";
+import { login, recuperarSenha } from "@/services/authService";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [enviandoRecuperacao, setEnviandoRecuperacao] = useState(false);
 
   async function handleLogin() {
     try {
@@ -17,6 +18,25 @@ export default function LoginPage() {
     } catch (error) {
       console.error(error);
       alert("E-mail ou senha inválidos");
+    }
+  }
+
+  async function handleRecuperarSenha() {
+    try {
+      setEnviandoRecuperacao(true);
+      await recuperarSenha(email);
+      alert(
+        "Se o e-mail estiver cadastrado, você receberá as instruções para redefinir a senha."
+      );
+    } catch (error) {
+      const mensagem =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível solicitar a recuperação de senha.";
+
+      alert(mensagem);
+    } finally {
+      setEnviandoRecuperacao(false);
     }
   }
 
@@ -134,6 +154,17 @@ export default function LoginPage() {
               className="w-full bg-yellow-400 hover:bg-yellow-300 text-black font-black p-4 rounded-2xl transition shadow-lg shadow-yellow-400/20"
             >
               Entrar
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRecuperarSenha}
+              disabled={enviandoRecuperacao}
+              className="w-full text-sm font-bold text-yellow-400 hover:text-yellow-300 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {enviandoRecuperacao
+                ? "Enviando instruções..."
+                : "Esqueci minha senha"}
             </button>
           </div>
 
