@@ -3,6 +3,10 @@
 > Modelo para assinatura e revisao juridica. Esta autorizacao nao substitui os
 > termos do Mercado Livre nem concede permissoes superiores as da conta usada.
 
+> Ferramenta independente de uso interno, nao afiliada, homologada ou
+> patrocinada pelo Mercado Livre. Seu uso depende das permissoes da conta e das
+> condicoes contratuais da operacao.
+
 ## Partes
 
 - Empresa autorizadora: `[RAZAO SOCIAL DA ALTO VALE]`

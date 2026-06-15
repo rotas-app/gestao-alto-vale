@@ -16,6 +16,8 @@
   "content_scripts": [
     {
       "matches": [
+        "https://gestaoalto.com.br/*",
+        "https://www.gestaoalto.com.br/*",
         "https://gestao-alto-vale.vercel.app/*",
         "http://localhost:3000/*"
       ],

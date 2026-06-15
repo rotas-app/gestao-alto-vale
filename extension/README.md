@@ -3,6 +3,10 @@
 Extensao Chrome de uso manual para importar somente metricas agregadas do
 painel operacional.
 
+> Ferramenta independente de uso interno, nao afiliada, homologada ou
+> patrocinada pelo Mercado Livre. Seu uso depende das permissoes da conta e das
+> condicoes contratuais da operacao.
+
 ## Instalar
 
 1. Abra `chrome://extensions`.
@@ -10,7 +14,8 @@ painel operacional.
 3. Clique em `Carregar sem compactacao`.
 4. Selecione a pasta `extension`.
 5. Abra `https://envios.adminml.com` e entre normalmente.
-6. No sistema Alto Vale, abra `Metricas` e clique em
+6. Abra `https://gestaoalto.com.br`.
+7. No sistema Alto Vale, abra `Metricas` e clique em
    `Sincronizar rotas do dia`.
 
 ## Privacidade

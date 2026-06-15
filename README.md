@@ -3,6 +3,8 @@
 Painel operacional para controle de bases, motoristas, rotas, metricas DS,
 rankings e relatorios da Alto Vale Transportes.
 
+Producao: `https://gestaoalto.com.br`
+
 ## Requisitos
 
 - Node.js 24
@@ -36,8 +38,19 @@ producao. O mesmo processo roda no GitHub Actions em `.github/workflows/ci.yml`.
 ### Aplicacao
 
 A branch `main` deve estar conectada ao projeto Vercel
-`gestao-alto-vale`. Cadastre na Vercel as mesmas variaveis Firebase usadas
-localmente.
+`gestao-alto-vale`, publicado em `https://gestaoalto.com.br`. O endereco
+`https://gestao-alto-vale.vercel.app` permanece como fallback tecnico.
+Cadastre na Vercel as mesmas variaveis Firebase usadas localmente.
+
+Para enviar recuperacoes de senha pelo dominio profissional, configure:
+
+- `APP_URL=https://gestaoalto.com.br`
+- `BREVO_API_KEY`
+- `FIREBASE_ADMIN_PROJECT_ID`
+- `FIREBASE_ADMIN_CLIENT_EMAIL`
+- `FIREBASE_ADMIN_PRIVATE_KEY`
+
+Essas variaveis sao privadas e nunca devem usar o prefixo `NEXT_PUBLIC_`.
 
 Para ativar o Sentry, adicione:
 

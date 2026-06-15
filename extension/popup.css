@@ -32,3 +32,14 @@ p {
   font-size: 12px;
   line-height: 1.5;
 }
+
+.disclaimer {
+  margin-top: 12px;
+  padding: 12px;
+  border-left: 3px solid #facc15;
+  border-radius: 8px;
+  background: #18181b;
+  color: #d4d4d8;
+  font-size: 11px;
+  line-height: 1.5;
+}
