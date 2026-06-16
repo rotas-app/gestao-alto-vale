@@ -194,9 +194,14 @@ export default function MetricasPage() {
           ]);
 
           alert("Rota cadastrada e sincronizada.");
-        } catch {
+        } catch (error) {
+          const mensagem =
+            error instanceof Error
+              ? error.message
+              : "Falha ao sincronizar agora.";
+          setMensagemSincronizacao(mensagem);
           alert(
-            "ID cadastrado. Não foi possível sincronizar agora; tente novamente pelo botão de sincronização."
+            `ID cadastrado. Nao foi possivel sincronizar agora: ${mensagem}`
           );
         }
       }
@@ -339,16 +344,6 @@ export default function MetricasPage() {
         );
       }
 
-      const horarioAtual = new Date().getTime();
-      const proximaSincronizacao =
-        horarioAtual + INTERVALO_SINCRONIZACAO_MS;
-      localStorage.setItem(
-        chaveUltimaSincronizacao(baseAtual, data),
-        String(proximaSincronizacao)
-      );
-      setBloqueadoAte(proximaSincronizacao);
-      setAgora(horarioAtual);
-
       const rotas = await sincronizarRotasMercadoLivre(
         metricasComRota.map((metrica) => String(metrica.idRota))
       );
@@ -392,8 +387,24 @@ export default function MetricasPage() {
         }
       }
 
+      if (atualizacoes.length === 0 && rotasComErro > 0) {
+        throw new Error(
+          "Nenhuma rota foi sincronizada. Verifique se a rota existe no painel e se sua sessao do Mercado Livre esta ativa."
+        );
+      }
+
       await atualizarMetricasMercadoLivre(atualizacoes);
       await carregarDados();
+
+      const horarioAtual = new Date().getTime();
+      const proximaSincronizacao =
+        horarioAtual + INTERVALO_SINCRONIZACAO_MS;
+      localStorage.setItem(
+        chaveUltimaSincronizacao(baseAtual, data),
+        String(proximaSincronizacao)
+      );
+      setBloqueadoAte(proximaSincronizacao);
+      setAgora(horarioAtual);
 
       const detalhes = [
         `${atualizacoes.length} metrica(s) atualizada(s)`,
