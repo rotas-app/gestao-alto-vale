@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Alto Vale - Sincronizador de Rotas",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sincroniza manualmente metricas agregadas de rotas abertas no painel Mercado Livre.",
   "permissions": [
     "scripting",
@@ -18,6 +18,8 @@
       "matches": [
         "https://gestaoalto.com.br/*",
         "https://www.gestaoalto.com.br/*",
+        "http://gestaoalto.com.br/*",
+        "http://www.gestaoalto.com.br/*",
         "https://gestao-alto-vale.vercel.app/*",
         "http://localhost:3000/*"
       ],
