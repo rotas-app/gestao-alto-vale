@@ -11,6 +11,32 @@ export interface RankingItem {
 
 type RankingAcumulado = Omit<RankingItem, "dsMedia">;
 
+function parseDataLocal(data: string) {
+  return new Date(`${data}T12:00:00`);
+}
+
+function inicioDoDia(data: Date) {
+  const inicio = new Date(data);
+  inicio.setHours(0, 0, 0, 0);
+  return inicio;
+}
+
+function fimDoDia(data: Date) {
+  const fim = new Date(data);
+  fim.setHours(23, 59, 59, 999);
+  return fim;
+}
+
+function intervaloSemanaDomingoSabado(data: Date) {
+  const inicio = inicioDoDia(data);
+  inicio.setDate(inicio.getDate() - inicio.getDay());
+
+  const fim = fimDoDia(inicio);
+  fim.setDate(inicio.getDate() + 6);
+
+  return { inicio, fim };
+}
+
 export async function gerarRankingPorPeriodo(
   periodo: "dia" | "semana" | "mes",
   baseId?: string
@@ -21,18 +47,16 @@ export async function gerarRankingPorPeriodo(
   const filtradas = metricas.filter((item) => {
     if (!item.data || !item.motoristaId) return false;
 
-    const data = new Date(`${item.data}T00:00:00`);
+    const data = parseDataLocal(item.data);
 
     if (periodo === "dia") {
       return data.toDateString() === hoje.toDateString();
     }
 
     if (periodo === "semana") {
-      const diff =
-        (hoje.getTime() - data.getTime()) /
-        (1000 * 60 * 60 * 24);
+      const { inicio, fim } = intervaloSemanaDomingoSabado(hoje);
 
-      return diff >= 0 && diff <= 7;
+      return data >= inicio && data <= fim;
     }
 
     return (

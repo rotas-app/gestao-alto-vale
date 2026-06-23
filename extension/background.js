@@ -54,49 +54,155 @@ async function syncRoutes(routeIds) {
         return String(value || "")
           .trim()
           .toLowerCase()
-          .replaceAll("-", "_");
+          .replaceAll("-", "_")
+          .replaceAll(" ", "_");
+      }
+
+      function collectTransportUnits(value, visited = new Set()) {
+        if (!value || typeof value !== "object" || visited.has(value)) {
+          return [];
+        }
+
+        visited.add(value);
+
+        if (Array.isArray(value)) {
+          return value.flatMap((item) => collectTransportUnits(item, visited));
+        }
+
+        const found = [];
+
+        if (Array.isArray(value.transportUnits)) {
+          found.push(...value.transportUnits);
+        }
+
+        for (const child of Object.values(value)) {
+          if (child && typeof child === "object") {
+            found.push(...collectTransportUnits(child, visited));
+          }
+        }
+
+        return Array.from(new Set(found));
+      }
+
+      function getStatusValues(unit) {
+        const related = unit?.relatedEntity || {};
+        const delivery = unit?.delivery || related?.delivery || {};
+        const shipment = unit?.shipment || related?.shipment || {};
+        const order = unit?.order || related?.order || {};
+
+        return [
+          unit?.status,
+          unit?.substatus,
+          unit?.frontStatus,
+          unit?.deliveryStatus,
+          unit?.statusDetail,
+          unit?.status_detail,
+          related?.status,
+          related?.substatus,
+          related?.frontStatus,
+          related?.statusDetail,
+          related?.status_detail,
+          delivery?.status,
+          delivery?.substatus,
+          shipment?.status,
+          shipment?.substatus,
+          order?.status,
+          order?.substatus,
+        ].map(normalizeStatus);
+      }
+
+      function isDelivered(values) {
+        return values.some(
+          (value) =>
+            value === "delivered" ||
+            value === "delivery_done" ||
+            value === "entregue"
+        );
+      }
+
+      function isFailed(values) {
+        const failedStatuses = [
+          "not_delivered",
+          "undelivered",
+          "failed",
+          "failure",
+          "cancelled",
+          "canceled",
+          "returned",
+          "return",
+          "refused",
+          "rejected",
+          "recipient_absent",
+          "buyer_absent",
+          "absent",
+          "address_not_found",
+          "bad_address",
+          "inaccessible",
+          "inaccessible_address",
+          "lost",
+          "damaged",
+          "stolen",
+          "delivery_failed",
+        ];
+
+        return values.some((value) =>
+          failedStatuses.some((status) => value.includes(status))
+        );
+      }
+
+      function getRouteStatusValues(data) {
+        return [
+          data?.status,
+          data?.substatus,
+          data?.routeStatus,
+          data?.route_status,
+          data?.state,
+          data?.frontStatus,
+          data?.statusDetail,
+          data?.status_detail,
+          data?.route?.status,
+          data?.route?.substatus,
+        ].map(normalizeStatus);
+      }
+
+      function isRouteClosed(values) {
+        return values.some(
+          (value) =>
+            value.includes("close") ||
+            value.includes("complete") ||
+            value.includes("finish") ||
+            value.includes("finaliz") ||
+            value.includes("conclu") ||
+            value.includes("ended") ||
+            value.includes("encerr")
+        );
       }
 
       function summarizeRoute(routeId, data) {
-        const units = (Array.isArray(data?.stops) ? data.stops : []).flatMap(
-          (stop) =>
-            (Array.isArray(stop?.orders) ? stop.orders : []).flatMap((order) =>
-              Array.isArray(order?.transportUnits)
-                ? order.transportUnits
-                : []
-            )
-        );
+        const routeStatusValues = getRouteStatusValues(data);
+        const units = collectTransportUnits(data);
 
         let delivered = 0;
         let pending = 0;
         let failed = 0;
 
         for (const unit of units) {
-          const status = normalizeStatus(unit?.status);
-          const frontStatus = normalizeStatus(
-            unit?.relatedEntity?.frontStatus
-          );
-          const substatus = normalizeStatus(unit?.relatedEntity?.substatus);
-          const values = [status, frontStatus, substatus];
+          const values = getStatusValues(unit);
 
-          if (values.includes("delivered")) {
+          if (isDelivered(values)) {
             delivered += 1;
-          } else if (
-            values.some((value) =>
-              [
-                "not_delivered",
-                "failed",
-                "failure",
-                "cancelled",
-                "canceled",
-                "returned",
-              ].includes(value)
-            )
-          ) {
+          } else if (isFailed(values)) {
             failed += 1;
           } else {
             pending += 1;
           }
+        }
+
+        const routeClosed = isRouteClosed(routeStatusValues);
+
+        if (routeClosed && pending > 0) {
+          failed += pending;
+          pending = 0;
         }
 
         return {
@@ -104,8 +210,22 @@ async function syncRoutes(routeIds) {
           driverName: String(data?.driver?.driverName || "").trim(),
           cluster: String(data?.cluster || "").trim(),
           vehicleLicense: String(data?.license || "").trim(),
-          status: String(data?.status || "").trim(),
-          substatus: String(data?.substatus || "").trim(),
+          status: routeClosed
+            ? "closed"
+            : String(
+                data?.status ||
+                  data?.routeStatus ||
+                  data?.route_status ||
+                  data?.route?.status ||
+                  ""
+              ).trim(),
+          substatus: String(
+            data?.substatus ||
+              data?.statusDetail ||
+              data?.status_detail ||
+              data?.route?.substatus ||
+              ""
+          ).trim(),
           total: units.length,
           delivered,
           pending,
