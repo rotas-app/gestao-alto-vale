@@ -153,13 +153,9 @@ async function syncRoutes(routeIds) {
       function getRouteStatusValues(data) {
         return [
           data?.status,
-          data?.substatus,
           data?.routeStatus,
           data?.route_status,
           data?.state,
-          data?.frontStatus,
-          data?.statusDetail,
-          data?.status_detail,
           data?.route?.status,
           data?.route?.substatus,
         ].map(normalizeStatus);
@@ -201,6 +197,7 @@ async function syncRoutes(routeIds) {
         const routeClosed = isRouteClosed(routeStatusValues);
 
         if (routeClosed && pending > 0) {
+          // Rota encerrada nao deve manter pacote em aberto no relatorio.
           failed += pending;
           pending = 0;
         }
