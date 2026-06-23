@@ -196,12 +196,6 @@ async function syncRoutes(routeIds) {
 
         const routeClosed = isRouteClosed(routeStatusValues);
 
-        if (routeClosed && pending > 0) {
-          // Rota encerrada nao deve manter pacote em aberto no relatorio.
-          failed += pending;
-          pending = 0;
-        }
-
         return {
           routeId: String(data?.id || routeId),
           driverName: String(data?.driver?.driverName || "").trim(),
