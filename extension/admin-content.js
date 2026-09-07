@@ -102,9 +102,20 @@ function extractRouteIds(
 window.addEventListener("message", (event) => {
   if (
     event.source !== window ||
-    event.data?.source !== ALTO_VALE_ADMIN_SOURCE ||
-    event.data?.type !== "ROUTE_IDS_FOUND"
+    event.data?.source !== ALTO_VALE_ADMIN_SOURCE
   ) {
+    return;
+  }
+
+  if (event.data?.type === "DIAGNOSTIC_URL") {
+    chrome.runtime.sendMessage({
+      type: "STORE_DIAGNOSTIC",
+      url: event.data.url || window.location.href,
+    });
+    return;
+  }
+
+  if (event.data?.type !== "ROUTE_IDS_FOUND") {
     return;
   }
 

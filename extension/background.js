@@ -2,6 +2,7 @@ const ADMIN_PANEL_URL = "https://envios.adminml.com/*";
 const ROUTE_DETAIL_URL =
   "/logistics/api/monitoring-route/route-detail?siteId=MLB&routeId=";
 const routeIdsByTab = new Map();
+const diagnosticsByTab = new Map();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "GET_DIAGNOSTICS") {
@@ -21,6 +22,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "STORE_ROUTE_IDS") {
     storeRouteIds(_sender.tab?.id, message.routeIds, message.url);
+    sendResponse({ ok: true });
+    return false;
+  }
+
+  if (message?.type === "STORE_DIAGNOSTIC") {
+    storeDiagnostic(_sender.tab?.id, message.url);
     sendResponse({ ok: true });
     return false;
   }
@@ -47,6 +54,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   routeIdsByTab.delete(tabId);
+  diagnosticsByTab.delete(tabId);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -55,8 +63,43 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     tab.url?.startsWith("https://envios.adminml.com/")
   ) {
     routeIdsByTab.delete(tabId);
+    diagnosticsByTab.delete(tabId);
   }
 });
+
+function sanitizeUrl(value) {
+  try {
+    const url = new URL(String(value || ""), "https://envios.adminml.com");
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return String(value || "").split("?")[0].slice(0, 200);
+  }
+}
+
+function storeDiagnostic(tabId, url) {
+  if (!tabId || !url) {
+    return;
+  }
+
+  const currentState = diagnosticsByTab.get(tabId) || {
+    urls: [],
+    lastSeenAt: 0,
+  };
+  const sanitizedUrl = sanitizeUrl(url);
+
+  if (
+    sanitizedUrl &&
+    /envios\.adminml\.com|logistics|route|rota|monitoring|distribution/i.test(
+      sanitizedUrl
+    ) &&
+    !currentState.urls.includes(sanitizedUrl)
+  ) {
+    currentState.urls = [sanitizedUrl, ...currentState.urls].slice(0, 12);
+  }
+
+  currentState.lastSeenAt = Date.now();
+  diagnosticsByTab.set(tabId, currentState);
+}
 
 function storeRouteIds(tabId, routeIds, url) {
   if (!tabId || !Array.isArray(routeIds)) {
@@ -91,6 +134,10 @@ async function getDiagnostics() {
       lastCaptureAt: 0,
       lastUrl: "",
     };
+    const diagnosticState = diagnosticsByTab.get(tab.id) || {
+      urls: [],
+      lastSeenAt: 0,
+    };
 
     return {
       tabId: tab.id,
@@ -99,6 +146,8 @@ async function getDiagnostics() {
       routeCount: state.ids.size,
       lastCaptureAt: state.lastCaptureAt,
       lastUrl: state.lastUrl,
+      diagnosticUrls: diagnosticState.urls,
+      diagnosticLastSeenAt: diagnosticState.lastSeenAt,
     };
   });
 

@@ -14,6 +14,15 @@
   }
 
   function inspectText(text, url) {
+    window.postMessage(
+      {
+        source,
+        type: "DIAGNOSTIC_URL",
+        url: String(url || window.location.href),
+      },
+      window.location.origin
+    );
+
     if (!text || !/\b\d{6,15}\b/.test(text)) {
       return;
     }

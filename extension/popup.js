@@ -3,8 +3,10 @@ const routeCount = document.getElementById("route-count");
 const lastCapture = document.getElementById("last-capture");
 const statusHelp = document.getElementById("status-help");
 const extensionVersion = document.getElementById("extension-version");
+const copyDiagnostics = document.getElementById("copy-diagnostics");
 
 extensionVersion.textContent = chrome.runtime.getManifest().version;
+let lastDiagnosticsText = "";
 
 function formatLastCapture(value) {
   if (!value) {
@@ -49,4 +51,27 @@ chrome.runtime.sendMessage({ type: "GET_DIAGNOSTICS" }, (response) => {
     statusHelp.textContent =
       "Pronto para sincronizar no Gestao Alto Vale.";
   }
+
+  lastDiagnosticsText = JSON.stringify(
+    {
+      version: chrome.runtime.getManifest().version,
+      panelOpen: diagnostics.panelOpen,
+      totalRouteCount: diagnostics.totalRouteCount,
+      tabs: tabs.map((tab) => ({
+        title: tab.title,
+        url: tab.url,
+        routeCount: tab.routeCount,
+        lastCaptureAt: tab.lastCaptureAt,
+        diagnosticUrls: tab.diagnosticUrls,
+        diagnosticLastSeenAt: tab.diagnosticLastSeenAt,
+      })),
+    },
+    null,
+    2
+  );
+});
+
+copyDiagnostics.addEventListener("click", async () => {
+  await navigator.clipboard.writeText(lastDiagnosticsText || "{}");
+  copyDiagnostics.textContent = "Copiado";
 });
