@@ -17,11 +17,16 @@ function inspectBrowserState() {
     }
   };
 
-  inspectText(window.location.href, true);
-  inspectText(document.documentElement?.innerHTML || "", true);
+  inspectText(
+    window.location.href,
+    /monitoring-distribution\/detail|routeId=/i.test(window.location.href)
+  );
 
   for (const entry of performance.getEntriesByType("resource")) {
-    inspectText(entry.name, true);
+    inspectText(
+      entry.name,
+      /monitoring-distribution\/detail|monitoring-route\/route-detail|routeId=/i.test(entry.name)
+    );
   }
 
   for (const storage of [window.localStorage, window.sessionStorage]) {
@@ -29,9 +34,12 @@ function inspectBrowserState() {
       for (let index = 0; index < storage.length; index += 1) {
         const key = storage.key(index) || "";
         const value = storage.getItem(key) || "";
-        const routeContext = ROUTE_CONTEXT_KEYS.test(key) || ROUTE_CONTEXT_KEYS.test(value);
-        inspectText(key, routeContext);
-        inspectText(value, routeContext);
+        if (ROUTE_CONTEXT_KEYS.test(key)) {
+          inspectText(key, true);
+          try {
+            extractRouteIds(JSON.parse(value), ids);
+          } catch {}
+        }
       }
     } catch {}
   }

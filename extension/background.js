@@ -139,19 +139,6 @@ async function getVisibleRouteIds() {
         }
       }
 
-      for (const element of document.querySelectorAll("[data-testid], [aria-label], [title]")) {
-        addId(element.getAttribute("data-testid"));
-        addId(element.getAttribute("aria-label"));
-        addId(element.getAttribute("title"));
-      }
-
-      const pageText = document.body?.innerText || "";
-      for (const line of pageText.split("\n")) {
-        if (/rota|route|id/i.test(line)) {
-          addId(line);
-        }
-      }
-
       return Array.from(ids).slice(0, 50);
     },
   });
