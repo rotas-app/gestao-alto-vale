@@ -18,13 +18,19 @@ window.addEventListener("message", async (event) => {
     return;
   }
 
-  if (event.data.type !== "ALTO_VALE_SYNC_ROUTES") {
+  if (
+    event.data.type !== "ALTO_VALE_SYNC_ROUTES" &&
+    event.data.type !== "ALTO_VALE_SYNC_VISIBLE_ROUTES"
+  ) {
     return;
   }
 
   try {
     const response = await chrome.runtime.sendMessage({
-      type: "SYNC_ROUTES",
+      type:
+        event.data.type === "ALTO_VALE_SYNC_VISIBLE_ROUTES"
+          ? "SYNC_VISIBLE_ROUTES"
+          : "SYNC_ROUTES",
       routeIds: event.data.routeIds,
     });
 

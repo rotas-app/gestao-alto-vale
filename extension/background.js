@@ -3,11 +3,15 @@ const ROUTE_DETAIL_URL =
   "/logistics/api/monitoring-route/route-detail?siteId=MLB&routeId=";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "SYNC_ROUTES") {
+  if (message?.type !== "SYNC_ROUTES" && message?.type !== "SYNC_VISIBLE_ROUTES") {
     return false;
   }
 
-  syncRoutes(message.routeIds)
+  const routeIdsPromise =
+    message?.type === "SYNC_VISIBLE_ROUTES" ? getVisibleRouteIds() : Promise.resolve(message.routeIds);
+
+  routeIdsPromise
+    .then((routeIds) => syncRoutes(routeIds))
     .then((routes) => sendResponse({ ok: true, routes }))
     .catch((error) =>
       sendResponse({
@@ -18,6 +22,62 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true;
 });
+
+async function getVisibleRouteIds() {
+  const tabs = await chrome.tabs.query({ url: ADMIN_PANEL_URL });
+  const panelTab = tabs.find((tab) => tab.id);
+
+  if (!panelTab?.id) {
+    throw new Error(
+      "Abra o painel envios.adminml.com e entre na sua conta antes de sincronizar."
+    );
+  }
+
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId: panelTab.id },
+    world: "MAIN",
+    func: () => {
+      const ids = new Set();
+      const addId = (value) => {
+        const matches = String(value || "").match(/\b\d{6,15}\b/g) || [];
+        for (const match of matches) {
+          ids.add(match);
+        }
+      };
+
+      for (const anchor of document.querySelectorAll("a[href]")) {
+        const href = anchor.getAttribute("href") || "";
+        if (href.includes("monitoring-distribution/detail")) {
+          addId(href);
+          addId(anchor.textContent);
+        }
+      }
+
+      for (const element of document.querySelectorAll("[data-testid], [aria-label], [title]")) {
+        addId(element.getAttribute("data-testid"));
+        addId(element.getAttribute("aria-label"));
+        addId(element.getAttribute("title"));
+      }
+
+      const pageText = document.body?.innerText || "";
+      for (const line of pageText.split("\n")) {
+        if (/rota|route|id/i.test(line)) {
+          addId(line);
+        }
+      }
+
+      return Array.from(ids).slice(0, 50);
+    },
+  });
+
+  if (!Array.isArray(result) || result.length === 0) {
+    throw new Error(
+      "Nao encontrei IDs de rota na aba do Mercado Livre. Abra a lista/monitoramento das rotas do dia antes de sincronizar."
+    );
+  }
+
+  return result;
+}
 
 async function syncRoutes(routeIds) {
   const sanitizedIds = Array.from(
@@ -229,14 +289,17 @@ async function syncRoutes(routeIds) {
 
       for (const routeId of ids) {
         try {
+          const separator = routeDetailUrl.includes("?") ? "&" : "?";
           const response = await fetch(
-            `${routeDetailUrl}${encodeURIComponent(routeId)}`,
+            `${routeDetailUrl}${encodeURIComponent(routeId)}${separator}_=${Date.now()}`,
             {
               method: "GET",
               credentials: "include",
               cache: "no-store",
               headers: {
                 Accept: "application/json",
+                "Cache-Control": "no-cache",
+                Pragma: "no-cache",
               },
             }
           );

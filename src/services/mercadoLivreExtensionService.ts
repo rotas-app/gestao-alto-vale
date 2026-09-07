@@ -124,3 +124,29 @@ export async function sincronizarRotasMercadoLivre(routeIds: string[]) {
 
   return response.routes || [];
 }
+
+export async function sincronizarRotasVisiveisMercadoLivre() {
+  const requestId = createRequestId();
+  const responsePromise = waitForExtensionMessage(
+    requestId,
+    "ALTO_VALE_SYNC_RESULT",
+    TIMEOUT_MS
+  );
+
+  window.postMessage(
+    {
+      source: SITE_SOURCE,
+      type: "ALTO_VALE_SYNC_VISIBLE_ROUTES",
+      requestId,
+    },
+    window.location.origin
+  );
+
+  const response = await responsePromise;
+
+  if (!response.ok) {
+    throw new Error(response.error || "Nao foi possivel sincronizar as rotas.");
+  }
+
+  return response.routes || [];
+}

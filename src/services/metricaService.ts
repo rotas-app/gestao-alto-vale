@@ -4,6 +4,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   query,
   writeBatch,
   updateDoc,
@@ -43,6 +44,32 @@ export async function listarMetricas(baseId?: string) {
         id: documento.id,
         ...documento.data(),
       }) as Metrica
+  );
+}
+
+export function observarMetricas(
+  baseId: string | undefined,
+  onChange: (metricas: Metrica[]) => void,
+  onError?: (error: Error) => void
+) {
+  const consulta = baseId
+    ? query(collection(db, COLLECTION), where("baseId", "==", baseId))
+    : query(collection(db, COLLECTION));
+
+  return onSnapshot(
+    consulta,
+    (snapshot) => {
+      onChange(
+        snapshot.docs.map(
+          (documento) =>
+            ({
+              id: documento.id,
+              ...documento.data(),
+            }) as Metrica
+        )
+      );
+    },
+    onError
   );
 }
 
