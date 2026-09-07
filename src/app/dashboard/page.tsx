@@ -77,6 +77,15 @@ function corDS(ds: number) {
   return "text-red-400";
 }
 
+function obterDataHoje() {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
+  const dia = String(hoje.getDate()).padStart(2, "0");
+
+  return `${ano}-${mes}-${dia}`;
+}
+
 function Card({
   title,
   value,
@@ -127,11 +136,13 @@ export default function DashboardPage() {
         };
       }
 
-      const [motoristas, metricas, rankingData] = await Promise.all([
+      const [motoristas, todasMetricas, rankingData] = await Promise.all([
         listarMotoristas(baseAtual),
         listarMetricas(baseAtual),
-        gerarRankingPorPeriodo("mes", baseAtual),
+        gerarRankingPorPeriodo("dia", baseAtual),
       ]);
+      const hoje = obterDataHoje();
+      const metricas = todasMetricas.filter((item) => item.data === hoje);
 
       const totalPacotes = metricas.reduce(
         (acc, item) => acc + Number(item.qtdPacotesTotal || 0),
@@ -212,13 +223,13 @@ export default function DashboardPage() {
               </h1>
 
               <p className="text-zinc-400 mt-2">
-                Resumo em tempo real da performance dos motoristas e rotas.
+                Resumo do dia da performance dos motoristas e rotas.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
               <Card
-                title="DS média geral"
+                title="DS media de hoje"
                 value={`${data.dsMedia}%`}
                 icon={TrendingUp}
                 valueClass={corDS(data.dsMedia)}
@@ -232,7 +243,7 @@ export default function DashboardPage() {
               />
 
               <Card
-                title="Métricas lançadas"
+                title="Metricas de hoje"
                 value={data.totalMetricas}
                 icon={ClipboardList}
                 valueClass="text-yellow-400"
@@ -287,7 +298,7 @@ export default function DashboardPage() {
                 </p>
 
                 <p className="text-zinc-300 text-sm mt-3">
-                  Métricas com desempenho abaixo da meta operacional.
+                  Metricas de hoje com desempenho abaixo da meta operacional.
                 </p>
               </div>
 
@@ -312,7 +323,7 @@ export default function DashboardPage() {
                       Top 5 DS
                     </h2>
                     <p className="text-zinc-500 text-sm">
-                      Melhores médias do mês
+                      Melhores medias de hoje
                     </p>
                   </div>
 
