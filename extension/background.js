@@ -1,8 +1,15 @@
 const ADMIN_PANEL_URL = "https://envios.adminml.com/*";
 const ROUTE_DETAIL_URL =
   "/logistics/api/monitoring-route/route-detail?siteId=MLB&routeId=";
+const routeIdsByTab = new Map();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "STORE_ROUTE_IDS") {
+    storeRouteIds(_sender.tab?.id, message.routeIds);
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (message?.type !== "SYNC_ROUTES" && message?.type !== "SYNC_VISIBLE_ROUTES") {
     return false;
   }
@@ -22,6 +29,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true;
 });
+
+function storeRouteIds(tabId, routeIds) {
+  if (!tabId || !Array.isArray(routeIds)) {
+    return;
+  }
+
+  const currentIds = routeIdsByTab.get(tabId) || new Set();
+
+  for (const routeId of routeIds) {
+    const normalizedId = String(routeId || "").trim();
+    if (/^\d{6,15}$/.test(normalizedId)) {
+      currentIds.add(normalizedId);
+    }
+  }
+
+  routeIdsByTab.set(tabId, currentIds);
+}
 
 async function getVisibleRouteIds() {
   const tabs = await chrome.tabs.query({ url: ADMIN_PANEL_URL });
@@ -70,13 +94,16 @@ async function getVisibleRouteIds() {
     },
   });
 
-  if (!Array.isArray(result) || result.length === 0) {
+  const capturedIds = Array.from(routeIdsByTab.get(panelTab.id) || []);
+  const allIds = Array.from(new Set([...(Array.isArray(result) ? result : []), ...capturedIds])).slice(0, 50);
+
+  if (allIds.length === 0) {
     throw new Error(
-      "Nao encontrei IDs de rota na aba do Mercado Livre. Abra a lista/monitoramento das rotas do dia antes de sincronizar."
+      "Nao encontrei IDs de rota na aba do Mercado Livre. Recarregue o monitoramento, aguarde as rotas aparecerem e tente sincronizar de novo."
     );
   }
 
-  return result;
+  return allIds;
 }
 
 async function syncRoutes(routeIds) {
