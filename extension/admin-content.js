@@ -57,7 +57,8 @@ function extractRouteIds(
   value,
   ids = new Set(),
   visited = new Set(),
-  routeContext = false
+  routeContext = false,
+  allowGenericIdKey = false
 ) {
   if (value == null || visited.has(value)) {
     return ids;
@@ -78,20 +79,21 @@ function extractRouteIds(
 
   if (Array.isArray(value)) {
     for (const item of value) {
-      extractRouteIds(item, ids, visited, routeContext);
+      extractRouteIds(item, ids, visited, routeContext, allowGenericIdKey);
     }
     return ids;
   }
 
   for (const [key, child] of Object.entries(value)) {
-    if (ROUTE_ID_KEYS.test(key)) {
+    if (ROUTE_ID_KEYS.test(key) || (allowGenericIdKey && key === "id")) {
       addRouteIds(child, ids);
     } else if (child && typeof child === "object") {
       extractRouteIds(
         child,
         ids,
         visited,
-        routeContext || ROUTE_CONTEXT_KEYS.test(key)
+        routeContext || ROUTE_CONTEXT_KEYS.test(key),
+        allowGenericIdKey
       );
     }
   }
@@ -119,7 +121,16 @@ window.addEventListener("message", (event) => {
     return;
   }
 
-  const routeIds = Array.from(extractRouteIds(event.data.payload)).slice(0, 50);
+  const sourceUrl = String(event.data.url || "");
+  const routeIds = Array.from(
+    extractRouteIds(
+      event.data.payload,
+      new Set(),
+      new Set(),
+      false,
+      sourceUrl.includes("/logistics/api/monitoring/get-routes-list")
+    )
+  ).slice(0, 50);
 
   if (routeIds.length === 0) {
     return;
