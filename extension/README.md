@@ -18,6 +18,10 @@ painel operacional.
 7. No sistema Alto Vale, abra `Metricas` e clique em
    `Sincronizar rotas do dia`.
 
+Antes de sincronizar, abra o popup da extensao para conferir se o painel esta
+aberto e quantas rotas foram capturadas. Se aparecer `0`, recarregue o
+monitoramento do Mercado Livre e aguarde a lista carregar.
+
 ## Privacidade
 
 A extensao nao le, armazena ou transmite cookies e tokens. A resposta detalhada
@@ -34,5 +38,13 @@ estes campos saem da aba:
 - pendentes
 - insucessos
 - quantidade de paradas
+
+## Permissoes da conta
+
+A extensao funciona com qualquer login do Mercado Livre que tenha acesso ao
+painel `envios.adminml.com` e permissao para ver as rotas consultadas. Ela nao
+usa uma conta fixa da Alto Vale e nao amplia permissoes: se o usuario logado nao
+consegue abrir uma rota no painel, a sincronizacao dessa rota tambem nao deve
+funcionar.
 
 Use somente com autorizacao da operacao e respeitando as permissoes da conta.

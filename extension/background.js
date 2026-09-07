@@ -4,8 +4,23 @@ const ROUTE_DETAIL_URL =
 const routeIdsByTab = new Map();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "GET_DIAGNOSTICS") {
+    getDiagnostics()
+      .then((diagnostics) => sendResponse({ ok: true, diagnostics }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Falha ao verificar diagnostico",
+        })
+      );
+    return true;
+  }
+
   if (message?.type === "STORE_ROUTE_IDS") {
-    storeRouteIds(_sender.tab?.id, message.routeIds);
+    storeRouteIds(_sender.tab?.id, message.routeIds, message.url);
     sendResponse({ ok: true });
     return false;
   }
@@ -30,21 +45,68 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-function storeRouteIds(tabId, routeIds) {
+chrome.tabs.onRemoved.addListener((tabId) => {
+  routeIdsByTab.delete(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (
+    changeInfo.status === "loading" &&
+    tab.url?.startsWith("https://envios.adminml.com/")
+  ) {
+    routeIdsByTab.delete(tabId);
+  }
+});
+
+function storeRouteIds(tabId, routeIds, url) {
   if (!tabId || !Array.isArray(routeIds)) {
     return;
   }
 
-  const currentIds = routeIdsByTab.get(tabId) || new Set();
+  const currentState = routeIdsByTab.get(tabId) || {
+    ids: new Set(),
+    lastCaptureAt: 0,
+    lastUrl: "",
+  };
 
   for (const routeId of routeIds) {
     const normalizedId = String(routeId || "").trim();
     if (/^\d{6,15}$/.test(normalizedId)) {
-      currentIds.add(normalizedId);
+      currentState.ids.add(normalizedId);
     }
   }
 
-  routeIdsByTab.set(tabId, currentIds);
+  currentState.lastCaptureAt = Date.now();
+  currentState.lastUrl = String(url || "");
+  routeIdsByTab.set(tabId, currentState);
+}
+
+async function getDiagnostics() {
+  const tabs = await chrome.tabs.query({ url: ADMIN_PANEL_URL });
+  const panelTabs = tabs.filter((tab) => tab.id);
+
+  const captured = panelTabs.map((tab) => {
+    const state = routeIdsByTab.get(tab.id) || {
+      ids: new Set(),
+      lastCaptureAt: 0,
+      lastUrl: "",
+    };
+
+    return {
+      tabId: tab.id,
+      title: tab.title || "",
+      url: tab.url || "",
+      routeCount: state.ids.size,
+      lastCaptureAt: state.lastCaptureAt,
+      lastUrl: state.lastUrl,
+    };
+  });
+
+  return {
+    panelOpen: panelTabs.length > 0,
+    totalRouteCount: captured.reduce((sum, item) => sum + item.routeCount, 0),
+    tabs: captured,
+  };
 }
 
 async function getVisibleRouteIds() {
@@ -94,7 +156,7 @@ async function getVisibleRouteIds() {
     },
   });
 
-  const capturedIds = Array.from(routeIdsByTab.get(panelTab.id) || []);
+  const capturedIds = Array.from(routeIdsByTab.get(panelTab.id)?.ids || []);
   const allIds = Array.from(new Set([...(Array.isArray(result) ? result : []), ...capturedIds])).slice(0, 50);
 
   if (allIds.length === 0) {

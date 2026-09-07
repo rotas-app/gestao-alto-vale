@@ -17,11 +17,33 @@
         A extensao envia somente ID da rota, motorista e contadores agregados.
         Cookies, tokens, enderecos e dados de clientes nao saem do painel.
       </div>
+      <section class="status" aria-live="polite">
+        <h2>Status</h2>
+        <dl>
+          <div>
+            <dt>Painel Mercado Livre</dt>
+            <dd id="panel-status">Verificando...</dd>
+          </div>
+          <div>
+            <dt>Rotas capturadas</dt>
+            <dd id="route-count">-</dd>
+          </div>
+          <div>
+            <dt>Ultima captura</dt>
+            <dd id="last-capture">-</dd>
+          </div>
+        </dl>
+        <p id="status-help">
+          Abra o monitoramento, aguarde as rotas carregarem e mantenha a aba
+          aberta antes de sincronizar.
+        </p>
+      </section>
       <div class="disclaimer">
         Ferramenta independente de uso interno, nao afiliada, homologada ou
         patrocinada pelo Mercado Livre. Seu uso depende das permissoes da conta
         e das condicoes contratuais da operacao.
       </div>
     </main>
+    <script src="popup.js"></script>
   </body>
 </html>

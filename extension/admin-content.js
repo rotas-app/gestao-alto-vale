@@ -55,6 +55,7 @@ window.addEventListener("message", (event) => {
   chrome.runtime.sendMessage({
     type: "STORE_ROUTE_IDS",
     routeIds,
+    url: window.location.href,
   });
 });
 
