@@ -9,6 +9,42 @@ function addRouteIds(value, ids) {
   }
 }
 
+function inspectBrowserState() {
+  const ids = new Set();
+  const inspectText = (value, routeContext = false) => {
+    if (routeContext || /route|rota|monitoring|distribution/i.test(String(value || ""))) {
+      addRouteIds(value, ids);
+    }
+  };
+
+  inspectText(window.location.href, true);
+  inspectText(document.documentElement?.innerHTML || "", true);
+
+  for (const entry of performance.getEntriesByType("resource")) {
+    inspectText(entry.name, true);
+  }
+
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index) || "";
+        const value = storage.getItem(key) || "";
+        const routeContext = ROUTE_CONTEXT_KEYS.test(key) || ROUTE_CONTEXT_KEYS.test(value);
+        inspectText(key, routeContext);
+        inspectText(value, routeContext);
+      }
+    } catch {}
+  }
+
+  if (ids.size > 0) {
+    chrome.runtime.sendMessage({
+      type: "STORE_ROUTE_IDS",
+      routeIds: Array.from(ids).slice(0, 50),
+      url: window.location.href,
+    });
+  }
+}
+
 function extractRouteIds(
   value,
   ids = new Set(),
@@ -83,3 +119,6 @@ script.onload = () => script.remove();
 
 (document.documentElement || document.head).appendChild(script);
 script.remove();
+
+window.setTimeout(inspectBrowserState, 1500);
+window.setTimeout(inspectBrowserState, 5000);

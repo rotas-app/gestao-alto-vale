@@ -2,6 +2,9 @@ const panelStatus = document.getElementById("panel-status");
 const routeCount = document.getElementById("route-count");
 const lastCapture = document.getElementById("last-capture");
 const statusHelp = document.getElementById("status-help");
+const extensionVersion = document.getElementById("extension-version");
+
+extensionVersion.textContent = chrome.runtime.getManifest().version;
 
 function formatLastCapture(value) {
   if (!value) {
