@@ -7,10 +7,8 @@ import {
   useState,
 } from "react";
 
-import { collection, getDocs, query, where } from "firebase/firestore";
-
-import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
+import { listarBases } from "@/services/baseService";
 
 export interface Base {
   id: string;
@@ -22,12 +20,14 @@ interface BaseContextType {
   bases: Base[];
   baseAtual: string;
   setBaseAtual: (baseId: string) => void;
+  recarregarBases: () => Promise<void>;
 }
 
 const BaseContext = createContext<BaseContextType>({
   bases: [],
   baseAtual: "",
   setBaseAtual: () => {},
+  recarregarBases: async () => {},
 });
 
 export function BaseProvider({
@@ -59,24 +59,16 @@ export function BaseProvider({
     }
   }
 
+  async function recarregarBases() {
+    setBases(await listarBases(true));
+  }
+
   useEffect(() => {
-    async function carregarBases() {
-      const q = query(
-        collection(db, "bases"),
-        where("ativo", "==", true)
-      );
+    const timeout = window.setTimeout(() => {
+      void recarregarBases();
+    }, 0);
 
-      const snapshot = await getDocs(q);
-
-      const lista = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Base[];
-
-      setBases(lista);
-    }
-
-    void carregarBases();
+    return () => window.clearTimeout(timeout);
   }, []);
 
   return (
@@ -85,6 +77,7 @@ export function BaseProvider({
         bases,
         baseAtual,
         setBaseAtual,
+        recarregarBases,
       }}
     >
       {children}

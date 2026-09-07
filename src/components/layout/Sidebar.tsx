@@ -8,12 +8,15 @@ import {
   ClipboardList,
   FileText,
   LayoutDashboard,
+  MapPinned,
   Menu,
   Route,
   ShieldCheck,
   Users,
   X,
 } from "lucide-react";
+
+import { useAuth } from "@/hooks/useAuth";
 
 const menuItems = [
   {
@@ -45,15 +48,24 @@ const menuItems = [
     href: "/usuarios",
     label: "Usuários",
     icon: ShieldCheck,
+    adminOnly: true,
+  },
+  {
+    href: "/bases",
+    label: "Bases",
+    icon: MapPinned,
+    adminOnly: true,
   },
   {
     href: "/logs",
     label: "Logs",
     icon: Route,
+    adminOnly: true,
   },
 ];
 
 export default function Sidebar() {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
 
   return (
@@ -102,7 +114,9 @@ export default function Sidebar() {
           </div>
 
           <nav className="flex-1 p-4 space-y-2">
-            {menuItems.map((item) => {
+            {menuItems
+              .filter((item) => !item.adminOnly || user?.cargo === "admin")
+              .map((item) => {
               const Icon = item.icon;
 
               return (

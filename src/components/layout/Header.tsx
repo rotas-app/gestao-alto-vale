@@ -31,6 +31,9 @@ export default function Header() {
     setIdBusca("");
   }
 
+  const nomeBaseAtual =
+    bases.find((base) => base.id === baseAtual)?.nome || user?.baseId || "-";
+
   return (
     <header className="sticky top-0 z-30 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800 px-4 md:px-8 py-4">
       <div className="flex items-center justify-between gap-4">
@@ -63,7 +66,7 @@ export default function Header() {
 
           {user?.cargo === "gestor" && (
             <div className="bg-zinc-900 border border-zinc-800 text-white rounded-2xl px-4 py-3 text-sm">
-              Base: {user.baseId || "-"}
+              Base: {nomeBaseAtual}
             </div>
           )}
 
