@@ -1,14 +1,27 @@
 const ALTO_VALE_ADMIN_SOURCE = "alto-vale-admin-panel";
+const ROUTE_ID_KEYS = /^(routeId|route_id|route|routeNumber|route_number|routeCode|route_code|idRota|id_rota|rotaId|rota_id)$/i;
+const ROUTE_CONTEXT_KEYS = /route|rota|monitoring|distribution/i;
 
-function extractRouteIds(value, ids = new Set(), visited = new Set()) {
+function addRouteIds(value, ids) {
+  const matches = String(value || "").match(/\b\d{6,15}\b/g) || [];
+  for (const match of matches) {
+    ids.add(match);
+  }
+}
+
+function extractRouteIds(
+  value,
+  ids = new Set(),
+  visited = new Set(),
+  routeContext = false
+) {
   if (value == null || visited.has(value)) {
     return ids;
   }
 
   if (typeof value === "string" || typeof value === "number") {
-    const matches = String(value).match(/\b\d{6,15}\b/g) || [];
-    for (const match of matches) {
-      ids.add(match);
+    if (routeContext) {
+      addRouteIds(value, ids);
     }
     return ids;
   }
@@ -21,16 +34,21 @@ function extractRouteIds(value, ids = new Set(), visited = new Set()) {
 
   if (Array.isArray(value)) {
     for (const item of value) {
-      extractRouteIds(item, ids, visited);
+      extractRouteIds(item, ids, visited, routeContext);
     }
     return ids;
   }
 
   for (const [key, child] of Object.entries(value)) {
-    if (/route|rota|id/i.test(key)) {
-      extractRouteIds(child, ids, visited);
+    if (ROUTE_ID_KEYS.test(key)) {
+      addRouteIds(child, ids);
     } else if (child && typeof child === "object") {
-      extractRouteIds(child, ids, visited);
+      extractRouteIds(
+        child,
+        ids,
+        visited,
+        routeContext || ROUTE_CONTEXT_KEYS.test(key)
+      );
     }
   }
 
@@ -55,7 +73,7 @@ window.addEventListener("message", (event) => {
   chrome.runtime.sendMessage({
     type: "STORE_ROUTE_IDS",
     routeIds,
-    url: window.location.href,
+    url: event.data.url || window.location.href,
   });
 });
 

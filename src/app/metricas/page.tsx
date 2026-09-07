@@ -273,10 +273,12 @@ export default function MetricasPage() {
           );
       const atualizacoes = [];
       let rotasComErro = 0;
+      const errosRotas: string[] = [];
 
       for (const rota of rotas) {
         if (rota.error) {
           rotasComErro += 1;
+          errosRotas.push(`${rota.routeId}: ${rota.error}`);
           continue;
         }
 
@@ -344,8 +346,9 @@ export default function MetricasPage() {
       }
 
       if (atualizacoes.length === 0 && rotasComErro > 0) {
+        const primeiroErro = errosRotas[0] ? ` Primeiro erro: ${errosRotas[0]}` : "";
         throw new Error(
-          "Nenhuma rota foi sincronizada. Verifique se a rota existe no painel e se sua sessao do Mercado Livre esta ativa."
+          `Nenhuma rota foi sincronizada. A extensao tentou ${rotasComErro} rota(s), mas o Mercado Livre nao retornou detalhe valido.${primeiroErro}`
         );
       }
 

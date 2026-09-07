@@ -1,26 +1,29 @@
 (() => {
   const source = "alto-vale-admin-panel";
 
-  function notify(payload) {
+  function notify(payload, url) {
     window.postMessage(
       {
         source,
         type: "ROUTE_IDS_FOUND",
         payload,
+        url: String(url || window.location.href),
       },
       window.location.origin
     );
   }
 
-  function inspectText(text) {
+  function inspectText(text, url) {
     if (!text || !/\b\d{6,15}\b/.test(text)) {
       return;
     }
 
     try {
-      notify(JSON.parse(text));
+      notify(JSON.parse(text), url);
     } catch {
-      notify(text);
+      if (/route|rota|monitoring|distribution/i.test(String(url || ""))) {
+        notify(text, url);
+      }
     }
   }
 
@@ -29,10 +32,11 @@
     const response = await originalFetch(...args);
 
     try {
+      const url = String(args[0]?.url || args[0] || "");
       response
         .clone()
         .text()
-        .then(inspectText)
+        .then((text) => inspectText(text, url))
         .catch(() => {});
     } catch {}
 
@@ -50,7 +54,7 @@
   XMLHttpRequest.prototype.send = function (...args) {
     this.addEventListener("load", () => {
       try {
-        inspectText(this.responseText);
+        inspectText(this.responseText, this.__altoValeUrl);
       } catch {}
     });
 
