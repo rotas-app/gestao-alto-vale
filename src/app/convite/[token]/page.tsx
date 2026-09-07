@@ -16,8 +16,18 @@ export default function ConvitePage() {
   const [convite, setConvite] = useState<Convite | null>(null);
   const [senha, setSenha] = useState("");
   const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
 
   async function handleAceitar() {
+    if (salvando) return;
+
+    if (senha.length < 6) {
+      alert("Crie uma senha com pelo menos 6 caracteres.");
+      return;
+    }
+
+    setSalvando(true);
+
     try {
       await aceitarConvite(token, senha);
       alert("Conta criada com sucesso");
@@ -27,6 +37,8 @@ export default function ConvitePage() {
         error instanceof Error ? error.message : "Erro ao aceitar convite";
 
       alert(mensagem);
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -86,6 +98,7 @@ export default function ConvitePage() {
         <div className="bg-black p-4 rounded mb-4">
           <p className="text-white">Nome: {convite.nome}</p>
           <p className="text-white">Email: {convite.email}</p>
+          <p className="text-white">Base: {convite.baseId || "-"}</p>
         </div>
 
         <input
@@ -98,9 +111,10 @@ export default function ConvitePage() {
 
         <button
           onClick={handleAceitar}
+          disabled={salvando}
           className="w-full bg-yellow-400 text-white font-bold p-3 rounded"
         >
-          Ativar conta
+          {salvando ? "Ativando..." : "Ativar conta"}
         </button>
       </div>
     </main>

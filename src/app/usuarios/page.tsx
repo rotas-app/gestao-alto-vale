@@ -22,19 +22,42 @@ export default function UsuariosPage() {
   const [email, setEmail] = useState("");
   const [baseId, setBaseId] = useState("");
   const [linkConvite, setLinkConvite] = useState("");
+  const [baseConvite, setBaseConvite] = useState("");
+  const [salvando, setSalvando] = useState(false);
 
   async function handleCriarConvite() {
+    if (salvando) return;
+
     if (!nome || !email || !baseId) {
       alert("Preencha nome, email e base");
       return;
     }
 
-    const convite = await criarConviteGestor(nome, email, baseId);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      alert("Informe um email valido");
+      return;
+    }
 
-    setLinkConvite(convite.link);
-    setNome("");
-    setEmail("");
-    setBaseId("");
+    setSalvando(true);
+
+    try {
+      const convite = await criarConviteGestor(nome, email, baseId);
+      const baseSelecionada = bases.find((base) => base.id === baseId);
+
+      setLinkConvite(convite.link);
+      setBaseConvite(baseSelecionada?.nome || baseId);
+      setNome("");
+      setEmail("");
+      setBaseId("");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel gerar o convite"
+      );
+    } finally {
+      setSalvando(false);
+    }
   }
 
   async function copiarLink() {
@@ -106,10 +129,11 @@ export default function UsuariosPage() {
 
               <button
                 onClick={handleCriarConvite}
+                disabled={salvando || bases.length === 0}
                 className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black px-6 py-4 rounded-2xl transition shadow-lg shadow-yellow-400/20"
               >
                 <ShieldCheck size={18} />
-                Gerar convite
+                {salvando ? "Gerando..." : "Gerar convite"}
               </button>
             </div>
           </PremiumCard>
@@ -144,6 +168,7 @@ export default function UsuariosPage() {
 
                 <p className="text-zinc-500 text-sm mt-2">
                   O gestor acessa o link, cria uma senha e entra no painel.
+                  Base: {baseConvite || "-"}.
                 </p>
               </div>
 
