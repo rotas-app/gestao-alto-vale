@@ -64,6 +64,7 @@ chrome.runtime.sendMessage({ type: "GET_DIAGNOSTICS" }, (response) => {
         lastCaptureAt: tab.lastCaptureAt,
         diagnosticUrls: tab.diagnosticUrls,
         diagnosticLastSeenAt: tab.diagnosticLastSeenAt,
+        lastSync: tab.lastSync,
       })),
     },
     null,

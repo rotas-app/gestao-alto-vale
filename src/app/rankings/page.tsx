@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Award,
   BarChart3,
+  BadgeCheck,
   CalendarDays,
   Crown,
   Medal,
@@ -34,6 +35,16 @@ function medalha(index: number) {
   if (index === 1) return "🥈";
   if (index === 2) return "🥉";
   return `#${index + 1}`;
+}
+
+function idsDasRotas(item: RankingItem) {
+  return Array.from(
+    new Set(
+      item.detalhes
+        .map((registro) => registro.idRota?.trim())
+        .filter((id): id is string => Boolean(id))
+    )
+  );
 }
 
 export default function RankingsPage() {
@@ -138,6 +149,7 @@ export default function RankingsPage() {
 
                   <p className="text-zinc-400 mt-1">
                     {primeiro.registros} registros • {primeiro.totalPacotes} pacotes •{" "}
+                    {primeiro.totalEntregues} entregues •{" "}
                     {primeiro.totalInsucessos} insucessos
                   </p>
                 </div>
@@ -201,18 +213,30 @@ export default function RankingsPage() {
 
                     <p className="text-zinc-500 text-sm mt-1">
                       Registros: {item.registros} • Pacotes: {item.totalPacotes} •
+                      Entregues: {item.totalEntregues} •{" "}
                       Insucessos: {item.totalInsucessos}
+                    </p>
+                    <p className="mt-2 break-all text-sm text-zinc-400">
+                      IDs das rotas: {idsDasRotas(item).join(", ") || "Não informado"}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-5">
-                  <div className="hidden md:grid grid-cols-3 gap-3">
+                  <div className="hidden md:grid grid-cols-2 xl:grid-cols-4 gap-3">
                     <div className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 min-w-24">
                       <PackageCheck size={16} className="text-yellow-400 mb-1" />
                       <p className="text-zinc-500 text-xs">Pacotes</p>
                       <p className="text-white font-black">
                         {item.totalPacotes}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-zinc-950 border border-zinc-800 p-3 min-w-24">
+                      <BadgeCheck size={16} className="text-emerald-400 mb-1" />
+                      <p className="text-zinc-500 text-xs">Entregues</p>
+                      <p className="text-emerald-400 font-black">
+                        {item.totalEntregues}
                       </p>
                     </div>
 
@@ -238,6 +262,32 @@ export default function RankingsPage() {
                   </div>
                 </div>
               </div>
+
+              <details className="mt-5 border-t border-zinc-800 pt-4">
+                <summary className="cursor-pointer text-sm font-semibold text-yellow-400">
+                  Ver registros e IDs das rotas ({item.registros})
+                </summary>
+
+                <div className="mt-3 space-y-2">
+                  {item.detalhes.map((registro, registroIndex) => {
+                    const [ano, mes, dia] = registro.data.split("-");
+                    const dataFormatada = `${dia}/${mes}/${ano}`;
+
+                    return (
+                      <div
+                        key={`${registro.data}-${registro.idRota || "sem-id"}-${registroIndex}`}
+                        className="flex flex-col gap-1 rounded-xl bg-zinc-950 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <span className="text-zinc-400">{dataFormatada}</span>
+                        <span className="break-all text-white">
+                          ID da rota: {registro.idRota || "Não informado"}
+                        </span>
+                        <span className="text-zinc-400">DS: {registro.ds}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
             </div>
           ))}
 

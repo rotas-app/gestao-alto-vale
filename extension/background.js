@@ -3,6 +3,7 @@ const ROUTE_DETAIL_URL =
   "/logistics/api/monitoring-route/route-detail?siteId=MLB&routeId=";
 const routeIdsByTab = new Map();
 const diagnosticsByTab = new Map();
+const lastSyncByTab = new Map();
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "GET_DIAGNOSTICS") {
@@ -21,7 +22,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "STORE_ROUTE_IDS") {
-    storeRouteIds(_sender.tab?.id, message.routeIds, message.url);
+    storeRouteIds(_sender.tab?.id, message.routeIds, message.url, message.replace === true);
     sendResponse({ ok: true });
     return false;
   }
@@ -55,6 +56,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   routeIdsByTab.delete(tabId);
   diagnosticsByTab.delete(tabId);
+  lastSyncByTab.delete(tabId);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -64,6 +66,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   ) {
     routeIdsByTab.delete(tabId);
     diagnosticsByTab.delete(tabId);
+    lastSyncByTab.delete(tabId);
   }
 });
 
@@ -101,13 +104,14 @@ function storeDiagnostic(tabId, url) {
   diagnosticsByTab.set(tabId, currentState);
 }
 
-function storeRouteIds(tabId, routeIds, url) {
+function storeRouteIds(tabId, routeIds, url, replace = false) {
   if (!tabId || !Array.isArray(routeIds)) {
     return;
   }
 
-  const currentState = routeIdsByTab.get(tabId) || {
-    ids: new Set(),
+  const previousState = routeIdsByTab.get(tabId);
+  const currentState = {
+    ids: replace ? new Set() : new Set(previousState?.ids || []),
     lastCaptureAt: 0,
     lastUrl: "",
   };
@@ -148,6 +152,7 @@ async function getDiagnostics() {
       lastUrl: state.lastUrl,
       diagnosticUrls: diagnosticState.urls,
       diagnosticLastSeenAt: diagnosticState.lastSeenAt,
+      lastSync: lastSyncByTab.get(tab.id) || null,
     };
   });
 
@@ -160,7 +165,7 @@ async function getDiagnostics() {
 
 async function getVisibleRouteIds() {
   const tabs = await chrome.tabs.query({ url: ADMIN_PANEL_URL });
-  const panelTab = tabs.find((tab) => tab.id);
+  const panelTab = selectPanelTab(tabs);
 
   if (!panelTab?.id) {
     throw new Error(
@@ -183,8 +188,17 @@ async function getVisibleRouteIds() {
       for (const anchor of document.querySelectorAll("a[href]")) {
         const href = anchor.getAttribute("href") || "";
         if (href.includes("monitoring-distribution/detail")) {
-          addId(href);
-          addId(anchor.textContent);
+          try {
+            const link = new URL(href, window.location.origin);
+            const pathMatch = link.pathname.match(/monitoring-distribution\/detail\/(\d{6,15})(?:\/|$)/i);
+            const queryId =
+              link.searchParams.get("routeId") ||
+              link.searchParams.get("route_id") ||
+              link.searchParams.get("idRota") ||
+              link.searchParams.get("id_rota");
+            if (pathMatch) addId(pathMatch[1]);
+            if (queryId) addId(queryId);
+          } catch {}
         }
       }
 
@@ -193,7 +207,8 @@ async function getVisibleRouteIds() {
   });
 
   const capturedIds = Array.from(routeIdsByTab.get(panelTab.id)?.ids || []);
-  const allIds = Array.from(new Set([...(Array.isArray(result) ? result : []), ...capturedIds])).slice(0, 50);
+  const visibleIds = Array.isArray(result) ? result : [];
+  const allIds = Array.from(new Set([...capturedIds, ...visibleIds])).slice(0, 50);
 
   if (allIds.length === 0) {
     throw new Error(
@@ -222,7 +237,7 @@ async function syncRoutes(routeIds) {
   }
 
   const tabs = await chrome.tabs.query({ url: ADMIN_PANEL_URL });
-  const panelTab = tabs.find((tab) => tab.id);
+  const panelTab = selectPanelTab(tabs);
 
   if (!panelTab?.id) {
     throw new Error(
@@ -266,7 +281,43 @@ async function syncRoutes(routeIds) {
           }
         }
 
-        return Array.from(new Set(found));
+        const indexesById = new Map();
+        const seenObjects = new Set();
+        const uniqueUnits = [];
+
+        for (const unit of found) {
+          const rawId =
+            unit?.id ?? unit?.transportUnitId ?? unit?.transport_unit_id;
+          const normalizedId = String(rawId ?? "").trim();
+
+          if (normalizedId) {
+            const existingIndex = indexesById.get(normalizedId);
+
+            if (existingIndex != null) {
+              const existingUnit = uniqueUnits[existingIndex];
+              if (
+                isDelivered(getStatusValues(unit)) &&
+                !isDelivered(getStatusValues(existingUnit))
+              ) {
+                uniqueUnits[existingIndex] = unit;
+              }
+              continue;
+            }
+
+            indexesById.set(normalizedId, uniqueUnits.length);
+            uniqueUnits.push(unit);
+            continue;
+          }
+
+          if (seenObjects.has(unit)) {
+            continue;
+          }
+
+          seenObjects.add(unit);
+          uniqueUnits.push(unit);
+        }
+
+        return uniqueUnits;
       }
 
       function getStatusValues(unit) {
@@ -296,6 +347,91 @@ async function syncRoutes(routeIds) {
         ].map(normalizeStatus);
       }
 
+      function getStatusFields(unit) {
+        const related = unit?.relatedEntity || {};
+        const delivery = unit?.delivery || related?.delivery || {};
+        const shipment = unit?.shipment || related?.shipment || {};
+        const order = unit?.order || related?.order || {};
+
+        return {
+          "unit.status": normalizeStatus(unit?.status),
+          "unit.substatus": normalizeStatus(unit?.substatus),
+          "unit.frontStatus": normalizeStatus(unit?.frontStatus),
+          "unit.deliveryStatus": normalizeStatus(unit?.deliveryStatus),
+          "unit.statusDetail": normalizeStatus(unit?.statusDetail || unit?.status_detail),
+          "relatedEntity.status": normalizeStatus(related?.status),
+          "relatedEntity.substatus": normalizeStatus(related?.substatus),
+          "relatedEntity.frontStatus": normalizeStatus(related?.frontStatus),
+          "relatedEntity.statusDetail": normalizeStatus(related?.statusDetail || related?.status_detail),
+          "delivery.status": normalizeStatus(delivery?.status),
+          "delivery.substatus": normalizeStatus(delivery?.substatus),
+          "shipment.status": normalizeStatus(shipment?.status),
+          "shipment.substatus": normalizeStatus(shipment?.substatus),
+          "order.status": normalizeStatus(order?.status),
+          "order.substatus": normalizeStatus(order?.substatus),
+        };
+      }
+
+      function collectTransportUnitArrayDiagnostics(
+        value,
+        path = "$",
+        results = new Map(),
+        visited = new Set()
+      ) {
+        if (!value || typeof value !== "object" || visited.has(value)) {
+          return results;
+        }
+
+        visited.add(value);
+
+        if (Array.isArray(value)) {
+          value.forEach((child, index) =>
+            collectTransportUnitArrayDiagnostics(
+              child,
+              `${path}[${index}]`,
+              results,
+              visited
+            )
+          );
+          return results;
+        }
+
+        for (const [key, child] of Object.entries(value)) {
+          const childPath = `${path}.${key}`;
+
+          if (key === "transportUnits" && Array.isArray(child)) {
+            const pathPattern = childPath.replace(/\[\d+\]/g, "[*]");
+            let diagnostic = results.get(pathPattern);
+
+            if (!diagnostic) {
+              diagnostic = {
+                path: pathPattern,
+                count: 0,
+                fieldBreakdown: {},
+              };
+              results.set(pathPattern, diagnostic);
+            }
+
+            diagnostic.count += child.length;
+
+            for (const unit of child) {
+              for (const [field, status] of Object.entries(getStatusFields(unit || {}))) {
+                if (!status) continue;
+                diagnostic.fieldBreakdown[field] ||= {};
+                diagnostic.fieldBreakdown[field][status] =
+                  (diagnostic.fieldBreakdown[field][status] || 0) + 1;
+              }
+            }
+          }
+
+          if (child && typeof child === "object") {
+            collectTransportUnitArrayDiagnostics(child, childPath, results, visited);
+          }
+        }
+
+        return results;
+      }
+
       function isDelivered(values) {
         return values.some(
           (value) =>
@@ -306,7 +442,7 @@ async function syncRoutes(routeIds) {
       }
 
       function isFailed(values) {
-        const failedStatuses = [
+        const finalFailureStatuses = new Set([
           "not_delivered",
           "undelivered",
           "failed",
@@ -314,25 +450,15 @@ async function syncRoutes(routeIds) {
           "cancelled",
           "canceled",
           "returned",
-          "return",
-          "refused",
+          "refused_delivery",
           "rejected",
-          "recipient_absent",
-          "buyer_absent",
-          "absent",
-          "address_not_found",
-          "bad_address",
-          "inaccessible",
-          "inaccessible_address",
           "lost",
           "damaged",
           "stolen",
           "delivery_failed",
-        ];
+        ]);
 
-        return values.some((value) =>
-          failedStatuses.some((status) => value.includes(status))
-        );
+        return values.some((value) => finalFailureStatuses.has(value));
       }
 
       function getRouteStatusValues(data) {
@@ -362,6 +488,19 @@ async function syncRoutes(routeIds) {
       function summarizeRoute(routeId, data) {
         const routeStatusValues = getRouteStatusValues(data);
         const units = collectTransportUnits(data);
+        const transportUnitArrays = Array.from(
+          collectTransportUnitArrayDiagnostics(data).values()
+        );
+        const statusBreakdown = {};
+        const directTransportUnits = Array.isArray(data?.transportUnits)
+          ? data.transportUnits.length
+          : null;
+        const transportUnitIds = new Set(
+          units
+            .map((unit) => unit?.id ?? unit?.transportUnitId ?? unit?.transport_unit_id)
+            .filter((id) => id != null)
+            .map(String)
+        );
 
         let delivered = 0;
         let pending = 0;
@@ -369,9 +508,15 @@ async function syncRoutes(routeIds) {
 
         for (const unit of units) {
           const values = getStatusValues(unit);
+          const signature = Array.from(new Set(values.filter(Boolean)))
+            .sort()
+            .join(" + ") || "sem_status";
+          statusBreakdown[signature] = (statusBreakdown[signature] || 0) + 1;
 
           if (isDelivered(values)) {
             delivered += 1;
+          } else if (values.includes("transferred")) {
+            continue;
           } else if (isFailed(values)) {
             failed += 1;
           } else {
@@ -403,6 +548,10 @@ async function syncRoutes(routeIds) {
               ""
           ).trim(),
           total: units.length,
+          directTransportUnits,
+          uniqueTransportUnitIdCount: transportUnitIds.size || null,
+          transportUnitArrays,
+          statusBreakdown,
           delivered,
           pending,
           failed,
@@ -468,5 +617,57 @@ async function syncRoutes(routeIds) {
     throw new Error("O painel nao retornou dados de rotas.");
   }
 
+  lastSyncByTab.set(panelTab.id, {
+    syncedAt: Date.now(),
+    routes: result.routes.map((route) => ({
+      routeId: String(route.routeId || ""),
+      total: Number(route.total || 0),
+      directTransportUnits:
+        route.directTransportUnits == null
+          ? null
+          : Number(route.directTransportUnits),
+      uniqueTransportUnitIdCount:
+        route.uniqueTransportUnitIdCount == null
+          ? null
+          : Number(route.uniqueTransportUnitIdCount),
+      transportUnitArrays: route.transportUnitArrays || [],
+      delivered: Number(route.delivered || 0),
+      pending: Number(route.pending || 0),
+      failed: Number(route.failed || 0),
+      statusBreakdown: route.statusBreakdown || {},
+      error: route.error || "",
+    })),
+  });
+
   return result.routes;
+}
+
+function selectPanelTab(tabs) {
+  const panelTabs = (Array.isArray(tabs) ? tabs : []).filter((tab) => tab.id);
+
+  if (panelTabs.length === 0) {
+    throw new Error(
+      "Abra o painel envios.adminml.com e entre na sua conta antes de sincronizar."
+    );
+  }
+
+  const tabsWithRecentCapture = panelTabs
+    .map((tab) => ({
+      tab,
+      lastCaptureAt: routeIdsByTab.get(tab.id)?.lastCaptureAt || 0,
+    }))
+    .filter((item) => item.lastCaptureAt > 0)
+    .sort((a, b) => b.lastCaptureAt - a.lastCaptureAt);
+
+  if (tabsWithRecentCapture.length > 0) {
+    return tabsWithRecentCapture[0].tab;
+  }
+
+  if (panelTabs.length === 1) {
+    return panelTabs[0];
+  }
+
+  throw new Error(
+    "Ha mais de uma aba do Mercado Livre aberta e nenhuma lista de rotas foi capturada. Feche as abas extras, recarregue o monitoramento e tente novamente."
+  );
 }

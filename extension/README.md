@@ -22,6 +22,11 @@ Antes de sincronizar, abra o popup da extensao para conferir se o painel esta
 aberto e quantas rotas foram capturadas. Se aparecer `0`, recarregue o
 monitoramento do Mercado Livre e aguarde a lista carregar.
 
+Se houver varias abas do Mercado Livre abertas, a extensao usa a aba que
+capturou a lista de rotas mais recentemente. Se nenhuma lista foi capturada e
+ha varias abas abertas, feche as abas extras, recarregue o monitoramento e
+tente novamente.
+
 ## Privacidade
 
 A extensao nao le, armazena ou transmite cookies e tokens. A resposta detalhada
