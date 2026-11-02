@@ -273,7 +273,7 @@ test("counts failed visits as pending, not final delivery failures", async () =>
   );
 });
 
-test("uses the route-list date when route detail does not include one", async () => {
+test("uses a captured route date from another Mercado Livre tab", async () => {
   let messageListener;
   const chrome = {
     runtime: { onMessage: { addListener: (listener) => (messageListener = listener) } },
@@ -315,7 +315,7 @@ test("uses the route-list date when route detail does not include one", async ()
       routeDates: { "346275567": "2026-11-01" },
       replace: true,
     },
-    { tab: { id: 9 } }
+    { tab: { id: 10 } }
   );
   const response = await send(
     { type: "SYNC_ROUTES", routeIds: ["346275567"] },

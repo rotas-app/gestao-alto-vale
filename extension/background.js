@@ -3,6 +3,7 @@ const ROUTE_DETAIL_URL =
   "/logistics/api/monitoring-route/route-detail?siteId=MLB&routeId=";
 const routeIdsByTab = new Map();
 const routeDatesByTab = new Map();
+const routeDatesByRouteId = new Map();
 const diagnosticsByTab = new Map();
 const lastSyncByTab = new Map();
 
@@ -147,6 +148,7 @@ function storeRouteIds(tabId, routeIds, url, replace = false, routeDates = {}) {
       /^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)
     ) {
       currentDates.set(normalizedId, normalizedDate);
+      routeDatesByRouteId.set(normalizedId, normalizedDate);
     }
   }
   routeDatesByTab.set(tabId, currentDates);
@@ -275,7 +277,12 @@ async function syncRoutes(routeIds) {
     args: [
       sanitizedIds,
       ROUTE_DETAIL_URL,
-      Object.fromEntries(routeDatesByTab.get(panelTab.id) || []),
+      Object.fromEntries(
+        new Map([
+          ...routeDatesByRouteId,
+          ...(routeDatesByTab.get(panelTab.id) || []),
+        ])
+      ),
     ],
     func: async (ids, routeDetailUrl, capturedRouteDates) => {
       function normalizeStatus(value) {
