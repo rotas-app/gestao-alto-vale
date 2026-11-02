@@ -34,6 +34,7 @@ import {
 } from "@/services/mercadoLivreExtensionService";
 
 import { calcularDSPorEntregas } from "@/utils/calcDS";
+import { identificarCicloRota } from "@/utils/cicloRota";
 
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
@@ -162,6 +163,7 @@ export default function MetricasPage() {
                 "Motorista não identificado",
               motoristaNomeMercadoLivre: rota.driverName,
               codigoGaiola: rota.cluster,
+              ciclo: identificarCicloRota(rota.cluster),
               qtdPacotesTotal: rota.total,
               qtdPacotesEntregues: rota.delivered,
               qtdPacotesNaoEntregues: rota.failed,
@@ -271,12 +273,34 @@ export default function MetricasPage() {
         );
       }
 
-      const importandoRotas = metricasComRota.length === 0;
-      const rotas = importandoRotas
-        ? await sincronizarRotasVisiveisMercadoLivre()
-        : await sincronizarRotasMercadoLivre(
-            metricasComRota.map((metrica) => String(metrica.idRota))
-          );
+      let rotasVisiveis: Awaited<
+        ReturnType<typeof sincronizarRotasVisiveisMercadoLivre>
+      > = [];
+      if (!idRotaFiltro) {
+        try {
+          rotasVisiveis = await sincronizarRotasVisiveisMercadoLivre();
+        } catch (error) {
+          if (metricasComRota.length === 0) throw error;
+        }
+      }
+
+      const idsVisiveis = new Set(rotasVisiveis.map((rota) => rota.routeId));
+      const idsRegistradosForaDaLista = Array.from(
+        new Set(
+          metricasComRota
+            .map((metrica) => String(metrica.idRota || "").trim())
+            .filter((routeId) => routeId && !idsVisiveis.has(routeId))
+        )
+      );
+      const rotasRegistradasForaDaLista = idsRegistradosForaDaLista.length
+        ? await sincronizarRotasMercadoLivre(idsRegistradosForaDaLista)
+        : [];
+      const rotas = [
+        ...rotasVisiveis,
+        ...rotasRegistradasForaDaLista.filter(
+          (rota) => !idsVisiveis.has(rota.routeId)
+        ),
+      ];
       const atualizacoes = [];
       let rotasComErro = 0;
       const errosRotas: string[] = [];
@@ -288,11 +312,11 @@ export default function MetricasPage() {
           continue;
         }
 
-        let metricasDaRota = metricasComRota.filter(
+        let metricasDaRota = metricas.filter(
           (metrica) => String(metrica.idRota) === rota.routeId
         );
 
-        if (importandoRotas && metricasDaRota.length === 0) {
+        if (metricasDaRota.length === 0) {
           const novaMetrica = await criarMetrica({
             motoristaId: "",
             motoristaNome: "Aguardando sincronização",
@@ -338,6 +362,7 @@ export default function MetricasPage() {
               metrica.motoristaNome,
             motoristaNomeMercadoLivre: rota.driverName,
             codigoGaiola: rota.cluster || metrica.codigoGaiola || "",
+            ciclo: identificarCicloRota(rota.cluster || metrica.codigoGaiola),
             qtdPacotesTotal: rota.total,
             qtdPacotesEntregues: rota.delivered,
             qtdPacotesNaoEntregues: rota.failed,
@@ -612,6 +637,7 @@ export default function MetricasPage() {
                     ) : (
                       "-"
                     )}{" "}
+                    | Ciclo: {metrica.ciclo || identificarCicloRota(metrica.codigoGaiola) || "-"}
                     | Gaiola: {metrica.codigoGaiola || "-"}
                   </p>
 

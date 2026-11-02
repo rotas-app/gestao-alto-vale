@@ -101,6 +101,7 @@ export interface AtualizacaoMetricaMercadoLivre {
   motoristaNome: string;
   motoristaNomeMercadoLivre: string;
   codigoGaiola: string;
+  ciclo?: "AM" | "PM" | "SD";
   qtdPacotesTotal: number;
   qtdPacotesEntregues: number;
   qtdPacotesNaoEntregues: number;

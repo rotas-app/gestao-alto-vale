@@ -5,6 +5,7 @@ export interface Metrica {
   motoristaNomeMercadoLivre?: string;
   data: string;
   codigoGaiola?: string;
+  ciclo?: "AM" | "PM" | "SD";
   idRota?: string;
   qtdPacotesTotal: number;
   qtdPacotesNaoEntregues: number;
