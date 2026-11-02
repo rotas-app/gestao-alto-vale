@@ -34,7 +34,12 @@ import {
 } from "@/services/mercadoLivreExtensionService";
 
 import { calcularDSPorEntregas } from "@/utils/calcDS";
-import { identificarCicloRota } from "@/utils/cicloRota";
+import {
+  identificarCicloRota,
+  type CicloRota,
+} from "@/utils/cicloRota";
+
+type CicloFiltro = "TODOS" | CicloRota | "SEM_CICLO";
 
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
@@ -63,6 +68,7 @@ export default function MetricasPage() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
   const [data, setData] = useState(obterDataHoje);
+  const [cicloSelecionado, setCicloSelecionado] = useState<CicloFiltro>("TODOS");
   const [idRota, setIdRota] = useState("");
   const [extensaoDisponivel, setExtensaoDisponivel] = useState<boolean | null>(
     null
@@ -245,6 +251,18 @@ export default function MetricasPage() {
 
   const metricasDoDia = metricas
     .filter((item) => {
+      const cicloMetrica =
+        item.ciclo || identificarCicloRota(item.codigoGaiola);
+
+      if (
+        cicloSelecionado !== "TODOS" &&
+        (cicloSelecionado === "SEM_CICLO"
+          ? cicloMetrica !== undefined
+          : cicloMetrica !== cicloSelecionado)
+      ) {
+        return false;
+      }
+
       if (idRotaFiltro) {
         return String(item.idRota || "")
           .toLowerCase()
@@ -537,7 +555,7 @@ export default function MetricasPage() {
       </div>
 
       <PremiumCard>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-6">
           <div>
             <h2 className="text-white text-3xl font-black">
               Métricas do Dia
@@ -548,37 +566,59 @@ export default function MetricasPage() {
             </p>
           </div>
 
-          <div className="flex flex-col items-end gap-2">
-            <button
-              type="button"
-              onClick={handleSincronizarRotas}
-              disabled={sincronizando}
-              className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-zinc-700 disabled:text-zinc-400 text-black font-black px-5 py-3 rounded-2xl transition"
-            >
-              <RefreshCw
-                size={18}
-                className={sincronizando ? "animate-spin" : ""}
-              />
-              {sincronizando ? "Sincronizando..." : "Sincronizar rotas do dia"}
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <label className="flex flex-col gap-2 text-xs font-bold text-zinc-400">
+              Ciclo das métricas
+              <select
+                aria-label="Filtrar métricas por ciclo"
+                value={cicloSelecionado}
+                onChange={(event) =>
+                  setCicloSelecionado(event.target.value as CicloFiltro)
+                }
+                className="min-w-44 rounded-2xl border border-zinc-800 bg-black px-4 py-3 text-sm text-white outline-none focus:border-yellow-400"
+              >
+                <option value="TODOS">Todos os ciclos</option>
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+                <option value="SD">SD</option>
+                <option value="SEM_CICLO">Sem ciclo identificado</option>
+              </select>
+            </label>
 
-            <p className="text-zinc-500 text-xs">
-              Clique sempre que precisar buscar os dados mais recentes.
-            </p>
+            <div className="flex flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={handleSincronizarRotas}
+                disabled={sincronizando}
+                className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-zinc-700 disabled:text-zinc-400 text-black font-black px-5 py-3 rounded-2xl transition"
+              >
+                <RefreshCw
+                  size={18}
+                  className={sincronizando ? "animate-spin" : ""}
+                />
+                {sincronizando
+                  ? "Sincronizando..."
+                  : "Sincronizar rotas do dia"}
+              </button>
 
-            <p
-              className={`text-xs font-bold ${
-                extensaoDisponivel
-                  ? "text-emerald-400"
-                  : "text-zinc-500"
-              }`}
-            >
-              {extensaoDisponivel === null
-                ? "Verificando extensao..."
-                : extensaoDisponivel
-                  ? "Extensao conectada"
-                  : "Extensao nao detectada"}
-            </p>
+              <p className="text-zinc-500 text-xs">
+                Clique sempre que precisar buscar os dados mais recentes.
+              </p>
+
+              <p
+                className={`text-xs font-bold ${
+                  extensaoDisponivel
+                    ? "text-emerald-400"
+                    : "text-zinc-500"
+                }`}
+              >
+                {extensaoDisponivel === null
+                  ? "Verificando extensao..."
+                  : extensaoDisponivel
+                    ? "Extensao conectada"
+                    : "Extensao nao detectada"}
+              </p>
+            </div>
           </div>
         </div>
 
