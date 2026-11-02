@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Alto Vale - Sincronizador de Rotas",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "Sincroniza manualmente metricas agregadas de rotas abertas no painel Mercado Livre.",
   "permissions": [
     "scripting",
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "host_permissions": [
     "https://envios.adminml.com/*"

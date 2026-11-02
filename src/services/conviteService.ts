@@ -29,13 +29,14 @@ export async function criarConviteGestor(
   email: string,
   baseId: string
 ) {
+  const emailNormalizado = email.trim().toLowerCase();
   const token = crypto.randomUUID();
 
   const conviteRef = doc(db, "convites", token);
 
   await setDoc(conviteRef, {
-    nome,
-    email,
+    nome: nome.trim(),
+    email: emailNormalizado,
     baseId,
     cargo: "gestor",
     token,
@@ -70,6 +71,10 @@ export async function aceitarConvite(
   token: string,
   senha: string
 ) {
+  if (senha.length < 8) {
+    throw new Error("A senha deve ter pelo menos 8 caracteres.");
+  }
+
   const convite =
     await buscarConvitePorToken(token);
 

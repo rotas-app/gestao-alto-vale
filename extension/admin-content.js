@@ -3,6 +3,7 @@ const ROUTE_ID_KEYS = /^(routeId|route_id|route|routeNumber|route_number|routeCo
 const ROUTE_CONTAINER_KEYS = /^(routes?|routeList|route_list|rotas?|listaRotas|lista_rotas)$/i;
 const ROUTE_SHAPE_KEYS = /^(driver|transportUnits|transport_units|stops|routeStatus|route_status|cluster|license|vehicleLicense|vehicle_license|routeNumber|route_number|routeCode|route_code)$/i;
 const ROUTE_DATE_KEYS = /^(completionDate|completion_date|completedDate|completed_date|completedAt|completed_at|concludedAt|concluded_at|closedAt|closed_at|finishedAt|finished_at|endDate|end_date|routeEndDate|route_end_date|routeDate|route_date|deliveryDate|delivery_date|operationDate|operation_date|scheduledDate|scheduled_date|plannedDate|planned_date|serviceDate|service_date|date)$/i;
+const ROUTE_CONTEXT_KEYS = /route|rota|monitoring|distribution/i;
 
 function normalizeRouteDate(value) {
   if (typeof value === "string") {

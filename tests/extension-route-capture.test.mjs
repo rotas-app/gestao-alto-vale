@@ -12,13 +12,24 @@ const backgroundSource = await readFile(
   "utf8"
 );
 
-function captureMessage(payload, url) {
+function captureMessage(
+  payload,
+  url,
+  browserStorage = {},
+  inspectBrowserState = false
+) {
   const listeners = new Map();
+  const scheduled = [];
   const sentMessages = [];
   const window = {
     location: { href: "https://envios.adminml.com/logistics/monitoring" },
+    localStorage: browserStorage.localStorage,
+    sessionStorage: browserStorage.sessionStorage,
     addEventListener: (type, listener) => listeners.set(type, listener),
-    setTimeout: () => 0,
+    setTimeout: (callback) => {
+      scheduled.push(callback);
+      return scheduled.length;
+    },
   };
   const document = {
     createElement: () => ({ remove: () => {} }),
@@ -31,7 +42,13 @@ function captureMessage(payload, url) {
     },
   };
 
-  vm.runInNewContext(adminContentSource, { window, document, chrome });
+  vm.runInNewContext(adminContentSource, {
+    window,
+    document,
+    chrome,
+    performance: { getEntriesByType: () => [] },
+    URL,
+  });
   listeners.get("message")({
     source: window,
     data: {
@@ -41,6 +58,7 @@ function captureMessage(payload, url) {
       url,
     },
   });
+  if (inspectBrowserState) scheduled[0]?.();
 
   return sentMessages.filter((message) => message.type === "STORE_ROUTE_IDS");
 }
@@ -93,6 +111,26 @@ test("an empty fresh route list replaces previous captures", () => {
   assert.equal(messages.length, 1);
   assert.deepEqual(Array.from(messages[0].routeIds), []);
   assert.equal(messages[0].replace, true);
+});
+
+test("captures route IDs from browser storage as a fallback", () => {
+  const storedValue = JSON.stringify({
+    routes: [{ routeId: "346275567", cluster: "J1_AM1" }],
+  });
+  const localStorage = {
+    length: 1,
+    key: (index) => (index === 0 ? "monitoring-route-list" : null),
+    getItem: () => storedValue,
+  };
+  const messages = captureMessage(
+    null,
+    "https://envios.adminml.com/logistics/monitoring",
+    { localStorage },
+    true
+  );
+
+  assert.equal(messages.length, 1);
+  assert.deepEqual(Array.from(messages[0].routeIds), ["346275567"]);
 });
 
 test("captures the route date from route-list records", () => {
@@ -324,6 +362,61 @@ test("uses a captured route date from another Mercado Livre tab", async () => {
 
   assert.equal(response.ok, true);
   assert.equal(response.routes[0].data, "2026-11-01");
+});
+
+test("restores captured routes after the service worker restarts", async () => {
+  const storedSession = {};
+
+  function createWorker() {
+    let messageListener;
+    const chrome = {
+      runtime: {
+        onMessage: {
+          addListener: (listener) => (messageListener = listener),
+        },
+      },
+      tabs: {
+        onRemoved: { addListener: () => {} },
+        onUpdated: { addListener: () => {} },
+        query: async () => [
+          { id: 9, url: "https://envios.adminml.com/monitoring" },
+        ],
+      },
+      storage: {
+        session: {
+          get: async (key) => ({ [key]: storedSession[key] }),
+          set: async (value) => Object.assign(storedSession, value),
+        },
+      },
+    };
+    vm.runInNewContext(backgroundSource, { chrome, Date });
+
+    return (message, sender = {}) =>
+      new Promise((resolve) => messageListener(message, sender, resolve));
+  }
+
+  const firstWorker = createWorker();
+  const stored = await firstWorker(
+    {
+      type: "STORE_ROUTE_IDS",
+      routeIds: ["346275567"],
+      routeDates: { "346275567": "2026-11-01" },
+      replace: true,
+    },
+    { tab: { id: 9 } }
+  );
+
+  assert.equal(stored.ok, true);
+
+  const restartedWorker = createWorker();
+  const response = await restartedWorker({ type: "GET_DIAGNOSTICS" });
+
+  assert.equal(response.diagnostics.tabs[0].routeCount, 1);
+  assert.equal(response.diagnostics.tabs[0].lastCaptureAt > 0, true);
+  assert.equal(
+    storedSession.altoValeSyncState.routeDatesByRouteId["346275567"],
+    "2026-11-01"
+  );
 });
 
 test("excludes transferred pending units from delivery failures and groups nested arrays", async () => {

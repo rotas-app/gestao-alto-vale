@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -35,7 +36,7 @@ export function BaseProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   const [bases, setBases] = useState<Base[]>([]);
   const [baseSelecionada, setBaseSelecionada] = useState(() => {
@@ -59,9 +60,19 @@ export function BaseProvider({
     }
   }
 
-  async function recarregarBases() {
-    setBases(await listarBases(true));
-  }
+  const recarregarBases = useCallback(async () => {
+    if (loading || user?.status !== "ativo") {
+      setBases([]);
+      return;
+    }
+
+    try {
+      setBases(await listarBases(true));
+    } catch (error) {
+      setBases([]);
+      console.error("Falha ao carregar bases do usuario ativo:", error);
+    }
+  }, [loading, user?.status]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -69,7 +80,7 @@ export function BaseProvider({
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [recarregarBases, user?.uid]);
 
   return (
     <BaseContext.Provider

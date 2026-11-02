@@ -28,12 +28,14 @@ export default function UsuariosPage() {
   async function handleCriarConvite() {
     if (salvando) return;
 
-    if (!nome || !email || !baseId) {
+    const emailNormalizado = email.trim().toLowerCase();
+
+    if (!nome.trim() || !emailNormalizado || !baseId) {
       alert("Preencha nome, email e base");
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado)) {
       alert("Informe um email valido");
       return;
     }
@@ -41,7 +43,7 @@ export default function UsuariosPage() {
     setSalvando(true);
 
     try {
-      const convite = await criarConviteGestor(nome, email, baseId);
+      const convite = await criarConviteGestor(nome.trim(), emailNormalizado, baseId);
       const baseSelecionada = bases.find((base) => base.id === baseId);
 
       setLinkConvite(convite.link);

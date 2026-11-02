@@ -21,8 +21,8 @@ export default function ConvitePage() {
   async function handleAceitar() {
     if (salvando) return;
 
-    if (senha.length < 6) {
-      alert("Crie uma senha com pelo menos 6 caracteres.");
+    if (senha.length < 8) {
+      alert("Crie uma senha com pelo menos 8 caracteres.");
       return;
     }
 
@@ -103,9 +103,11 @@ export default function ConvitePage() {
 
         <input
           type="password"
+          minLength={8}
+          autoComplete="new-password"
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
-          placeholder="Crie uma senha"
+          placeholder="Crie uma senha com no mínimo 8 caracteres"
           className="w-full p-3 rounded bg-zinc-800 text-white border border-zinc-700 mb-4"
         />
 

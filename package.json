@@ -7,9 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run test:rules",
-    "test:rules": "npx firebase-tools emulators:exec --project gestao-alto-vale-rules-test --only firestore \"node --test tests/firestore.rules.test.mjs\"",
-    "verify": "npx tsc --noEmit --pretty false && npx eslint src extension tests && npm run test:rules && npm run build"
+    "test": "npm run test:extension && npm run test:rules",
+    "test:extension": "node --test tests/extension-route-capture.test.mjs",
+    "test:rules": "firebase emulators:exec --project gestao-alto-vale-rules-test --only firestore \"node --test tests/firestore.rules.test.mjs\"",
+    "verify": "npx tsc --noEmit --pretty false && npx eslint src extension tests && npm test && npm run build"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.57.0",
@@ -32,6 +33,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "^16.2.9",
+    "firebase-tools": "15.34.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

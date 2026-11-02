@@ -6,10 +6,84 @@ const routeDatesByTab = new Map();
 const routeDatesByRouteId = new Map();
 const diagnosticsByTab = new Map();
 const lastSyncByTab = new Map();
+const SESSION_STATE_KEY = "altoValeSyncState";
+const sessionStorage = chrome.storage?.session;
+let sessionWriteQueue = Promise.resolve();
+
+function restoreSessionState() {
+  if (!sessionStorage) return Promise.resolve();
+
+  return sessionStorage
+    .get(SESSION_STATE_KEY)
+    .then((stored) => {
+      const state = stored?.[SESSION_STATE_KEY] || {};
+
+      for (const [tabId, value] of Object.entries(state.routeIdsByTab || {})) {
+        routeIdsByTab.set(Number(tabId), {
+          ids: new Set(Array.isArray(value?.ids) ? value.ids : []),
+          lastCaptureAt: Number(value?.lastCaptureAt || 0),
+          lastUrl: String(value?.lastUrl || ""),
+        });
+      }
+
+      for (const [tabId, dates] of Object.entries(state.routeDatesByTab || {})) {
+        routeDatesByTab.set(Number(tabId), new Map(Object.entries(dates || {})));
+      }
+
+      for (const [routeId, routeDate] of Object.entries(
+        state.routeDatesByRouteId || {}
+      )) {
+        routeDatesByRouteId.set(routeId, routeDate);
+      }
+
+      for (const [tabId, lastSync] of Object.entries(state.lastSyncByTab || {})) {
+        lastSyncByTab.set(Number(tabId), lastSync);
+      }
+    })
+    .catch((error) => {
+      console.error("Falha ao restaurar estado da extensao:", error);
+    });
+}
+
+const sessionStateReady = restoreSessionState();
+
+function persistSessionState() {
+  if (!sessionStorage) return Promise.resolve();
+
+  const state = {
+    routeIdsByTab: Object.fromEntries(
+      Array.from(routeIdsByTab, ([tabId, value]) => [
+        tabId,
+        {
+          ids: Array.from(value.ids),
+          lastCaptureAt: value.lastCaptureAt,
+          lastUrl: value.lastUrl,
+        },
+      ])
+    ),
+    routeDatesByTab: Object.fromEntries(
+      Array.from(routeDatesByTab, ([tabId, dates]) => [
+        tabId,
+        Object.fromEntries(dates),
+      ])
+    ),
+    routeDatesByRouteId: Object.fromEntries(routeDatesByRouteId),
+    lastSyncByTab: Object.fromEntries(lastSyncByTab),
+  };
+
+  sessionWriteQueue = sessionWriteQueue
+    .then(() => sessionStorage.set({ [SESSION_STATE_KEY]: state }))
+    .catch((error) => {
+      console.error("Falha ao persistir estado da extensao:", error);
+    });
+
+  return sessionWriteQueue;
+}
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "GET_DIAGNOSTICS") {
-    getDiagnostics()
+    sessionStateReady
+      .then(() => getDiagnostics())
       .then((diagnostics) => sendResponse({ ok: true, diagnostics }))
       .catch((error) =>
         sendResponse({
@@ -24,15 +98,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "STORE_ROUTE_IDS") {
-    storeRouteIds(
-      _sender.tab?.id,
-      message.routeIds,
-      message.url,
-      message.replace === true,
-      message.routeDates
-    );
-    sendResponse({ ok: true });
-    return false;
+    sessionStateReady
+      .then(() => {
+        storeRouteIds(
+          _sender.tab?.id,
+          message.routeIds,
+          message.url,
+          message.replace === true,
+          message.routeDates
+        );
+        return persistSessionState();
+      })
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Falha ao guardar rotas",
+        })
+      );
+    return true;
   }
 
   if (message?.type === "STORE_DIAGNOSTIC") {
@@ -45,11 +129,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return false;
   }
 
-  const routeIdsPromise =
-    message?.type === "SYNC_VISIBLE_ROUTES" ? getVisibleRouteIds() : Promise.resolve(message.routeIds);
-
-  routeIdsPromise
-    .then((routeIds) => syncRoutes(routeIds))
+  sessionStateReady
+    .then(async () => {
+      const routeIds =
+        message.type === "SYNC_VISIBLE_ROUTES"
+          ? await getVisibleRouteIds()
+          : message.routeIds;
+      const routes = await syncRoutes(routeIds);
+      await persistSessionState();
+      return routes;
+    })
     .then((routes) => sendResponse({ ok: true, routes }))
     .catch((error) =>
       sendResponse({
@@ -62,10 +151,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  routeIdsByTab.delete(tabId);
-  routeDatesByTab.delete(tabId);
-  diagnosticsByTab.delete(tabId);
-  lastSyncByTab.delete(tabId);
+  sessionStateReady.then(() => {
+    routeIdsByTab.delete(tabId);
+    routeDatesByTab.delete(tabId);
+    diagnosticsByTab.delete(tabId);
+    lastSyncByTab.delete(tabId);
+    return persistSessionState();
+  });
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -73,10 +165,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     changeInfo.status === "loading" &&
     tab.url?.startsWith("https://envios.adminml.com/")
   ) {
-    routeIdsByTab.delete(tabId);
-    routeDatesByTab.delete(tabId);
-    diagnosticsByTab.delete(tabId);
-    lastSyncByTab.delete(tabId);
+    sessionStateReady.then(() => {
+      routeIdsByTab.delete(tabId);
+      routeDatesByTab.delete(tabId);
+      diagnosticsByTab.delete(tabId);
+      lastSyncByTab.delete(tabId);
+      return persistSessionState();
+    });
   }
 });
 
