@@ -118,6 +118,48 @@ test("captures the route date from route-list records", () => {
   });
 });
 
+test("captures the completion date shown on the Mercado Livre route page", () => {
+  const listeners = new Map();
+  const scheduled = [];
+  const sentMessages = [];
+  const window = {
+    location: {
+      href: "https://envios.adminml.com/logistics/monitoring-distribution/detail/346275567",
+    },
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    setTimeout: (callback) => {
+      scheduled.push(callback);
+      return scheduled.length;
+    },
+  };
+  const document = {
+    body: { innerText: "Esta rota foi conclu\u00edda no dia 29/10/2026." },
+    createElement: () => ({ remove: () => {} }),
+    documentElement: { appendChild: () => {} },
+  };
+  const chrome = {
+    runtime: {
+      getURL: (path) => path,
+      sendMessage: (message) => sentMessages.push(message),
+    },
+  };
+
+  vm.runInNewContext(adminContentSource, {
+    window,
+    document,
+    chrome,
+    URL,
+    performance: { getEntriesByType: () => [] },
+  });
+  scheduled[0]();
+
+  const message = sentMessages.find((item) => item.type === "STORE_ROUTE_IDS");
+  assert.deepEqual(Array.from(message.routeIds), ["346275567"]);
+  assert.deepEqual(Object.assign({}, message.routeDates), {
+    "346275567": "2026-10-29",
+  });
+});
+
 test("uses the tab with the newest route capture and replaces old IDs", async () => {
   let messageListener;
   let now = 100;

@@ -2,7 +2,7 @@ const ALTO_VALE_ADMIN_SOURCE = "alto-vale-admin-panel";
 const ROUTE_ID_KEYS = /^(routeId|route_id|route|routeNumber|route_number|routeCode|route_code|idRota|id_rota|rotaId|rota_id)$/i;
 const ROUTE_CONTAINER_KEYS = /^(routes?|routeList|route_list|rotas?|listaRotas|lista_rotas)$/i;
 const ROUTE_SHAPE_KEYS = /^(driver|transportUnits|transport_units|stops|routeStatus|route_status|cluster|license|vehicleLicense|vehicle_license|routeNumber|route_number|routeCode|route_code)$/i;
-const ROUTE_DATE_KEYS = /^(routeDate|route_date|deliveryDate|delivery_date|operationDate|operation_date|scheduledDate|scheduled_date|plannedDate|planned_date|serviceDate|service_date|date)$/i;
+const ROUTE_DATE_KEYS = /^(completionDate|completion_date|completedDate|completed_date|completedAt|completed_at|concludedAt|concluded_at|closedAt|closed_at|finishedAt|finished_at|endDate|end_date|routeEndDate|route_end_date|routeDate|route_date|deliveryDate|delivery_date|operationDate|operation_date|scheduledDate|scheduled_date|plannedDate|planned_date|serviceDate|service_date|date)$/i;
 
 function normalizeRouteDate(value) {
   if (typeof value === "string") {
@@ -38,6 +38,7 @@ function addRouteIds(value, ids) {
 
 function inspectBrowserState() {
   const ids = new Set();
+  const routeDates = {};
   const inspectText = (value, routeContext = false) => {
     if (routeContext || /route|rota|monitoring|distribution/i.test(String(value || ""))) {
       addRouteIds(value, ids);
@@ -48,6 +49,21 @@ function inspectBrowserState() {
     window.location.href,
     /monitoring-distribution\/detail|routeId=/i.test(window.location.href)
   );
+
+  try {
+    const pageUrl = new URL(window.location.href);
+    const routeId = pageUrl.pathname.match(
+      /monitoring-distribution\/detail\/(\d{6,15})(?:\/|$)/i
+    )?.[1];
+    const completedMatch = (document.body?.innerText || "").match(
+      /esta rota foi conclu[i\u00ed]da no dia\s+(\d{2})\/(\d{2})\/(\d{4})/i
+    );
+
+    if (routeId && completedMatch) {
+      ids.add(routeId);
+      routeDates[routeId] = `${completedMatch[3]}-${completedMatch[2]}-${completedMatch[1]}`;
+    }
+  } catch {}
 
   for (const entry of performance.getEntriesByType("resource")) {
     inspectText(
@@ -75,6 +91,7 @@ function inspectBrowserState() {
     chrome.runtime.sendMessage({
       type: "STORE_ROUTE_IDS",
       routeIds: Array.from(ids).slice(0, 50),
+      routeDates,
       url: window.location.href,
     });
   }

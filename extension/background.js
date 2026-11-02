@@ -579,6 +579,24 @@ async function syncRoutes(routeIds) {
         }
 
         const routeClosed = isRouteClosed(routeStatusValues);
+        const completedDateKeys = [
+          "completionDate",
+          "completion_date",
+          "completedDate",
+          "completed_date",
+          "completedAt",
+          "completed_at",
+          "concludedAt",
+          "concluded_at",
+          "closedAt",
+          "closed_at",
+          "finishedAt",
+          "finished_at",
+          "endDate",
+          "end_date",
+          "routeEndDate",
+          "route_end_date",
+        ];
         const routeDateKeys = [
           "routeDate",
           "route_date",
@@ -595,7 +613,17 @@ async function syncRoutes(routeIds) {
           "date",
         ];
         const routeDateSources = [data, data?.route, data?.distributionRoute];
+        let completedDate = "";
         let routeDate = "";
+
+        for (const source of routeDateSources) {
+          if (!source || typeof source !== "object") continue;
+          for (const key of completedDateKeys) {
+            completedDate = normalizeRouteDate(source[key]);
+            if (completedDate) break;
+          }
+          if (completedDate) break;
+        }
 
         for (const source of routeDateSources) {
           if (!source || typeof source !== "object") continue;
@@ -608,7 +636,10 @@ async function syncRoutes(routeIds) {
 
         return {
           routeId: String(data?.id || routeId),
-          data: routeDate || String(capturedRouteDates?.[routeId] || ""),
+          data:
+            completedDate ||
+            String(capturedRouteDates?.[routeId] || "") ||
+            routeDate,
           driverName: String(data?.driver?.driverName || "").trim(),
           cluster: String(data?.cluster || "").trim(),
           vehicleLicense: String(data?.license || "").trim(),
