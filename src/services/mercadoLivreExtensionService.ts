@@ -1,5 +1,6 @@
 export interface RouteMetricsFromExtension {
   routeId: string;
+  data?: string;
   driverName: string;
   cluster: string;
   vehicleLicense: string;

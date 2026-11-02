@@ -95,6 +95,29 @@ test("an empty fresh route list replaces previous captures", () => {
   assert.equal(messages[0].replace, true);
 });
 
+test("captures the route date from route-list records", () => {
+  const messages = captureMessage(
+    {
+      data: {
+        routes: [
+          {
+            id: "346275567",
+            routeDate: "2026-11-01T08:30:00-03:00",
+            driver: { driverName: "Motorista" },
+          },
+        ],
+      },
+    },
+    "https://envios.adminml.com/logistics/api/monitoring/get-routes-list?siteId=MLB"
+  );
+
+  assert.equal(messages.length, 1);
+  assert.deepEqual(Array.from(messages[0].routeIds), ["346275567"]);
+  assert.deepEqual(Object.assign({}, messages[0].routeDates), {
+    "346275567": "2026-11-01",
+  });
+});
+
 test("uses the tab with the newest route capture and replaces old IDs", async () => {
   let messageListener;
   let now = 100;
@@ -173,7 +196,7 @@ test("counts failed visits as pending, not final delivery failures", async () =>
   const fetch = async () => ({
     ok: true,
     status: 200,
-    json: async () => ({ id: "466072461", transportUnits: units }),
+    json: async () => ({ id: "466072461", date: "2026-11-01", transportUnits: units }),
   });
   const immediateTimeout = (callback) => {
     callback();
@@ -201,10 +224,64 @@ test("counts failed visits as pending, not final delivery failures", async () =>
   assert.equal(response.routes[0].statusBreakdown["receiver_absent + shipped"], 20);
   assert.equal(response.routes[0].statusBreakdown["not_delivered + returned"], 1);
   assert.equal(response.routes[0].transportUnitArrays[0].path, "$.transportUnits");
+  assert.equal(response.routes[0].data, "2026-11-01");
   assert.equal(
     response.routes[0].transportUnitArrays[0].fieldBreakdown["unit.substatus"].receiver_absent,
     20
   );
+});
+
+test("uses the route-list date when route detail does not include one", async () => {
+  let messageListener;
+  const chrome = {
+    runtime: { onMessage: { addListener: (listener) => (messageListener = listener) } },
+    tabs: {
+      onRemoved: { addListener: () => {} },
+      onUpdated: { addListener: () => {} },
+      query: async () => [{ id: 9, url: "https://envios.adminml.com/monitoring" }],
+    },
+    scripting: {
+      executeScript: async ({ func, args }) => [
+        { result: await func(...args) },
+      ],
+    },
+  };
+  const fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      id: "346275567",
+      transportUnits: [{ id: "package-1", status: "delivered" }],
+    }),
+  });
+  vm.runInNewContext(backgroundSource, {
+    chrome,
+    fetch,
+    setTimeout: (callback) => {
+      callback();
+      return 0;
+    },
+  });
+
+  const send = (message, sender = {}) =>
+    new Promise((resolve) => messageListener(message, sender, resolve));
+
+  await send(
+    {
+      type: "STORE_ROUTE_IDS",
+      routeIds: ["346275567"],
+      routeDates: { "346275567": "2026-11-01" },
+      replace: true,
+    },
+    { tab: { id: 9 } }
+  );
+  const response = await send(
+    { type: "SYNC_ROUTES", routeIds: ["346275567"] },
+    {}
+  );
+
+  assert.equal(response.ok, true);
+  assert.equal(response.routes[0].data, "2026-11-01");
 });
 
 test("excludes transferred pending units from delivery failures and groups nested arrays", async () => {

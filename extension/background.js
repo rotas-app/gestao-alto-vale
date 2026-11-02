@@ -2,6 +2,7 @@ const ADMIN_PANEL_URL = "https://envios.adminml.com/*";
 const ROUTE_DETAIL_URL =
   "/logistics/api/monitoring-route/route-detail?siteId=MLB&routeId=";
 const routeIdsByTab = new Map();
+const routeDatesByTab = new Map();
 const diagnosticsByTab = new Map();
 const lastSyncByTab = new Map();
 
@@ -22,7 +23,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "STORE_ROUTE_IDS") {
-    storeRouteIds(_sender.tab?.id, message.routeIds, message.url, message.replace === true);
+    storeRouteIds(
+      _sender.tab?.id,
+      message.routeIds,
+      message.url,
+      message.replace === true,
+      message.routeDates
+    );
     sendResponse({ ok: true });
     return false;
   }
@@ -55,6 +62,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   routeIdsByTab.delete(tabId);
+  routeDatesByTab.delete(tabId);
   diagnosticsByTab.delete(tabId);
   lastSyncByTab.delete(tabId);
 });
@@ -65,6 +73,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     tab.url?.startsWith("https://envios.adminml.com/")
   ) {
     routeIdsByTab.delete(tabId);
+    routeDatesByTab.delete(tabId);
     diagnosticsByTab.delete(tabId);
     lastSyncByTab.delete(tabId);
   }
@@ -104,7 +113,7 @@ function storeDiagnostic(tabId, url) {
   diagnosticsByTab.set(tabId, currentState);
 }
 
-function storeRouteIds(tabId, routeIds, url, replace = false) {
+function storeRouteIds(tabId, routeIds, url, replace = false, routeDates = {}) {
   if (!tabId || !Array.isArray(routeIds)) {
     return;
   }
@@ -126,6 +135,21 @@ function storeRouteIds(tabId, routeIds, url, replace = false) {
   currentState.lastCaptureAt = Date.now();
   currentState.lastUrl = String(url || "");
   routeIdsByTab.set(tabId, currentState);
+
+  const currentDates = replace
+    ? new Map()
+    : new Map(routeDatesByTab.get(tabId) || []);
+  for (const [routeId, routeDate] of Object.entries(routeDates || {})) {
+    const normalizedId = String(routeId || "").trim();
+    const normalizedDate = String(routeDate || "").trim();
+    if (
+      /^\d{6,15}$/.test(normalizedId) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)
+    ) {
+      currentDates.set(normalizedId, normalizedDate);
+    }
+  }
+  routeDatesByTab.set(tabId, currentDates);
 }
 
 async function getDiagnostics() {
@@ -248,8 +272,12 @@ async function syncRoutes(routeIds) {
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId: panelTab.id },
     world: "MAIN",
-    args: [sanitizedIds, ROUTE_DETAIL_URL],
-    func: async (ids, routeDetailUrl) => {
+    args: [
+      sanitizedIds,
+      ROUTE_DETAIL_URL,
+      Object.fromEntries(routeDatesByTab.get(panelTab.id) || []),
+    ],
+    func: async (ids, routeDetailUrl, capturedRouteDates) => {
       function normalizeStatus(value) {
         return String(value || "")
           .trim()
@@ -485,6 +513,32 @@ async function syncRoutes(routeIds) {
         );
       }
 
+      function normalizeRouteDate(value) {
+        if (typeof value === "string") {
+          const text = value.trim();
+          const isoDate = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
+
+          const brazilianDate = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          if (brazilianDate) {
+            return `${brazilianDate[3]}-${brazilianDate[2]}-${brazilianDate[1]}`;
+          }
+
+          const compactDate = text.match(/^(\d{4})(\d{2})(\d{2})$/);
+          if (compactDate) {
+            return `${compactDate[1]}-${compactDate[2]}-${compactDate[3]}`;
+          }
+        }
+
+        if (typeof value === "number" && Number.isFinite(value)) {
+          const timestamp = value < 100000000000 ? value * 1000 : value;
+          const date = new Date(timestamp);
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+        }
+
+        return "";
+      }
+
       function summarizeRoute(routeId, data) {
         const routeStatusValues = getRouteStatusValues(data);
         const units = collectTransportUnits(data);
@@ -525,9 +579,36 @@ async function syncRoutes(routeIds) {
         }
 
         const routeClosed = isRouteClosed(routeStatusValues);
+        const routeDateKeys = [
+          "routeDate",
+          "route_date",
+          "deliveryDate",
+          "delivery_date",
+          "operationDate",
+          "operation_date",
+          "scheduledDate",
+          "scheduled_date",
+          "plannedDate",
+          "planned_date",
+          "serviceDate",
+          "service_date",
+          "date",
+        ];
+        const routeDateSources = [data, data?.route, data?.distributionRoute];
+        let routeDate = "";
+
+        for (const source of routeDateSources) {
+          if (!source || typeof source !== "object") continue;
+          for (const key of routeDateKeys) {
+            routeDate = normalizeRouteDate(source[key]);
+            if (routeDate) break;
+          }
+          if (routeDate) break;
+        }
 
         return {
           routeId: String(data?.id || routeId),
+          data: routeDate || String(capturedRouteDates?.[routeId] || ""),
           driverName: String(data?.driver?.driverName || "").trim(),
           cluster: String(data?.cluster || "").trim(),
           vehicleLicense: String(data?.license || "").trim(),
@@ -621,6 +702,7 @@ async function syncRoutes(routeIds) {
     syncedAt: Date.now(),
     routes: result.routes.map((route) => ({
       routeId: String(route.routeId || ""),
+      data: String(route.data || ""),
       total: Number(route.total || 0),
       directTransportUnits:
         route.directTransportUnits == null

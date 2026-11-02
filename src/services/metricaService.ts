@@ -96,6 +96,7 @@ export async function excluirMetrica(id: string) {
 
 export interface AtualizacaoMetricaMercadoLivre {
   id: string;
+  data?: string;
   motoristaId?: string;
   motoristaNome: string;
   motoristaNomeMercadoLivre: string;

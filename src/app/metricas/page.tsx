@@ -70,9 +70,9 @@ export default function MetricasPage() {
   const [salvandoCadastro, setSalvandoCadastro] = useState(false);
   const [mensagemSincronizacao, setMensagemSincronizacao] = useState("");
 
-  function limparFormulario() {
+  function limparFormulario(dataFormulario = obterDataHoje()) {
     setEditandoId(null);
-    setData(obterDataHoje());
+    setData(dataFormulario);
     setIdRota("");
   }
 
@@ -103,6 +103,7 @@ export default function MetricasPage() {
     }
 
     setSalvandoCadastro(true);
+    let dataFinalDoRegistro = data;
 
     try {
       if (editandoId) {
@@ -144,6 +145,8 @@ export default function MetricasPage() {
             throw new Error(rota?.error || "Rota não encontrada no painel.");
           }
 
+          dataFinalDoRegistro = rota.data || data;
+
           const motoristaCorrespondente = rota.driverName
             ? await criarMotorista(rota.driverName, baseAtual)
             : undefined;
@@ -151,6 +154,7 @@ export default function MetricasPage() {
           await atualizarMetricasMercadoLivre([
             {
               id: novaMetrica.id,
+              data: dataFinalDoRegistro,
               motoristaId: motoristaCorrespondente?.id,
               motoristaNome:
                 motoristaCorrespondente?.nomeCompleto ||
@@ -171,7 +175,9 @@ export default function MetricasPage() {
             },
           ]);
 
-          alert("Rota cadastrada e sincronizada.");
+          alert(
+            `Rota cadastrada e sincronizada para ${dataFinalDoRegistro.split("-").reverse().join("/")}.`
+          );
         } catch (error) {
           const mensagem =
             error instanceof Error
@@ -184,7 +190,7 @@ export default function MetricasPage() {
         }
       }
 
-      limparFormulario();
+      limparFormulario(dataFinalDoRegistro);
     } finally {
       setSalvandoCadastro(false);
     }
@@ -290,7 +296,7 @@ export default function MetricasPage() {
           const novaMetrica = await criarMetrica({
             motoristaId: "",
             motoristaNome: "Aguardando sincronização",
-            data,
+            data: rota.data || data,
             codigoGaiola: "",
             idRota: rota.routeId,
             baseId: baseAtual,
@@ -307,7 +313,7 @@ export default function MetricasPage() {
               id: novaMetrica.id,
               motoristaId: "",
               motoristaNome: "Aguardando sincronização",
-              data,
+              data: rota.data || data,
               idRota: rota.routeId,
               qtdPacotesTotal: 0,
               qtdPacotesNaoEntregues: 0,
@@ -324,6 +330,7 @@ export default function MetricasPage() {
         for (const metrica of metricasDaRota) {
           atualizacoes.push({
             id: metrica.id,
+            data: rota.data || metrica.data,
             motoristaId: motoristaCorrespondente?.id,
             motoristaNome:
               motoristaCorrespondente?.nomeCompleto ||
@@ -420,6 +427,9 @@ export default function MetricasPage() {
                 onClick={(e) => e.currentTarget.showPicker()}
                 className="w-full pl-12 p-4 rounded-2xl bg-black border border-zinc-800 text-white"
               />
+              <p className="mt-2 text-xs text-zinc-500">
+                A data da rota serÃ¡ identificada automaticamente quando o Mercado Livre informar. Caso contrÃ¡rio, usaremos esta data.
+              </p>
             </div>
 
             <input
@@ -453,7 +463,7 @@ export default function MetricasPage() {
 
             {editandoId && (
               <button
-                onClick={limparFormulario}
+                onClick={() => limparFormulario()}
                 className="bg-zinc-800 hover:bg-zinc-700 text-white font-black px-6 py-4 rounded-2xl transition"
               >
                 Cancelar
