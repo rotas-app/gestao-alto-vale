@@ -129,9 +129,12 @@ export async function atualizarMetricasMercadoLivre(
       motoristaId,
       ...dados
     } = atualizacao;
+    const dadosSemIndefinidos = Object.fromEntries(
+      Object.entries(dados).filter(([, valor]) => valor !== undefined)
+    ) as Omit<AtualizacaoMetricaMercadoLivre, "id" | "motoristaId">;
 
     batch.update(doc(db, COLLECTION, id), {
-      ...dados,
+      ...dadosSemIndefinidos,
       ...(motoristaId ? { motoristaId } : {}),
       origemSincronizacao: "mercado_livre_extensao",
       sincronizadoEm: new Date(),
