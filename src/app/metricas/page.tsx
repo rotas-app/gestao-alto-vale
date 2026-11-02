@@ -41,6 +41,32 @@ import {
 
 type CicloFiltro = "TODOS" | CicloRota | "SEM_CICLO";
 
+const STATUS_ROTA_FECHADA = new Set([
+  "closed",
+  "complete",
+  "completed",
+  "concluded",
+  "finished",
+  "finalized",
+  "finalizada",
+  "finalizado",
+  "concluida",
+  "concluido",
+  "encerrada",
+  "encerrado",
+]);
+
+function rotaEstaFechada(statusRota?: string) {
+  const status = String(statusRota || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return status
+    .split(/[^a-z0-9]+/)
+    .some((parte) => STATUS_ROTA_FECHADA.has(parte));
+}
+
 function corDS(ds: number) {
   if (ds >= 98) return "text-emerald-400";
   if (ds >= 95) return "text-yellow-400";
@@ -271,7 +297,14 @@ export default function MetricasPage() {
 
       return data ? item.data === data : true;
     })
-    .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+    .sort((a, b) => {
+      const ordemPorStatus =
+        Number(rotaEstaFechada(a.statusRota)) -
+        Number(rotaEstaFechada(b.statusRota));
+
+      if (ordemPorStatus !== 0) return ordemPorStatus;
+      return String(b.data).localeCompare(String(a.data));
+    });
 
   async function handleSincronizarRotas() {
     const metricasComRota = metricasDoDia.filter((metrica) =>
